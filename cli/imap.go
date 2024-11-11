@@ -41,9 +41,9 @@ func SearchFolder() *cobra.Command {
 		unseen    bool
 	)
 	cmd := &cobra.Command{
-		Use:   "search",
+		Use:   "search <folder>",
 		Short: "search the specified folder for messages",
-		Args:  cobra.ExactArgs(1),
+		Args:  validateFolderArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imap.Account)
 			searchOpts := buildSearchOptions(to, from, subject, startDate, endDate, unseen)
@@ -66,13 +66,13 @@ func SearchFolder() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&or, "or", false, "`OR` search criteria instead of `AND`")
+	cmd.Flags().BoolVarP(&or, "or", "o", false, "OR search criteria instead of AND")
 	cmd.Flags().BoolVar(&unseen, "unseen", false, "find unseen messages")
-	cmd.Flags().StringVar(&from, "from", "", "find messages from this address")
-	cmd.Flags().StringVar(&to, "to", "", "find messages to this address")
-	cmd.Flags().StringVar(&subject, "subject", "", "find messages with this subject")
-	cmd.Flags().StringVar(&startDate, "startDate", "", "find messages sent after this date")
-	cmd.Flags().StringVar(&endDate, "endDate", "", "find messages sent before this date")
+	cmd.Flags().StringVarP(&from, "from", "f", "", "find messages from this address")
+	cmd.Flags().StringVarP(&to, "to", "t", "", "find messages to this address")
+	cmd.Flags().StringVarP(&subject, "subject", "s", "", "match subject")
+	cmd.Flags().StringVarP(&startDate, "after", "a", "", "find messages received after date (format: `2006-02-01`)")
+	cmd.Flags().StringVarP(&endDate, "before", "b", "", "find messages received before date (format: `2006-02-01`)")
 	return cmd
 }
 
@@ -80,9 +80,9 @@ func SearchFolder() *cobra.Command {
 func CountMessagesBySender() *cobra.Command {
 	var threshold int
 	cmd := &cobra.Command{
-		Use:   "senders",
+		Use:   "senders <folder>",
 		Short: "print a list of senders in the configured mailbox",
-		Args:  cobra.ExactArgs(1),
+		Args:  validateFolderArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imap.Account)
 			data, err := imap.CountMessagesBySender(account, args[0], threshold)
@@ -94,6 +94,28 @@ func CountMessagesBySender() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().IntVar(&threshold, "threshold", 1, "only show senders with at least this many messages")
+	cmd.Flags().IntVarP(&threshold, "threshold", "t", 1, "only show senders with at least this many messages")
+	return cmd
+}
+
+// CreateFolder recursively creates the requested imap folder in account
+func CreateFolder() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "mkdir <path>",
+		Short: "recursively create imap folder",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				log.Fatal().Msg("you must provide the folder path to create as the first positional argument")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			account := cmd.Context().Value("account").(imap.Account)
+			if err := imap.EnsureFolder(account, args[0]); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
 	return cmd
 }

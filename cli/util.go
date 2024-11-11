@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/wryfi/shemail/imap"
 	"github.com/wryfi/shemail/util"
@@ -78,4 +79,11 @@ func buildSearchOptions(to, from, subject, startDate, endDate string, unseen boo
 	log.Debug().Msgf("Search options built: %s", searchOpts.Serialize())
 
 	return searchOpts
+}
+
+func validateFolderArg(cmd *cobra.Command, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("you must specify a folder as the first positional argument")
+	}
+	return nil
 }

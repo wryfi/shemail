@@ -1,10 +1,15 @@
 package main
 
-import "github.com/wryfi/shemail/cli"
+import (
+	"github.com/wryfi/shemail/cli"
+	"github.com/wryfi/shemail/logging"
+)
+
+var log = &logging.Logger
 
 func main() {
 	cmd := cli.SheMailCommand()
 	if err := cli.Execute(cmd); err != nil {
-		panic(err)
+		log.Fatal().Msgf("failed to run command: %v", err)
 	}
 }

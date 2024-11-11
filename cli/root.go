@@ -37,7 +37,7 @@ func SheMailCommand() *cobra.Command {
 			return nil
 		},
 	}
-	command.PersistentFlags().StringP("account", "a", "default", "account name")
+	command.PersistentFlags().StringP("account", "A", "default", "account identifier")
 	return command
 }
 
@@ -46,5 +46,6 @@ func Execute(cmd *cobra.Command) error {
 	cmd.AddCommand(ListFolders())
 	cmd.AddCommand(SearchFolder())
 	cmd.AddCommand(CountMessagesBySender())
+	cmd.AddCommand(CreateFolder())
 	return cmd.Execute()
 }

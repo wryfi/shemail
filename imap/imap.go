@@ -43,6 +43,14 @@ func GetImapClient(account Account) (*client.Client, error) {
 	return imapClient, nil
 }
 
+func MustGetImapClient(account Account) *client.Client {
+	imapClient, err := GetImapClient(account)
+	if err != nil {
+		log.Fatal().Msgf("failed to get imap client: %w", err)
+	}
+	return imapClient
+}
+
 // ListFolders lists all folders in the IMAP account
 func ListFolders(account Account) ([]string, error) {
 	// Connect to the server
