@@ -4,24 +4,18 @@ import (
 	"fmt"
 	imap2 "github.com/emersion/go-imap"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/wryfi/shemail/imap"
 	"github.com/wryfi/shemail/util"
 )
 
+// ListFolders prints a list of imap folders on terminal
 func ListFolders() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "folders",
 		Short: "print a list of folders in the configured mailbox",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			server := viper.GetString("imap.server")
-			port := viper.GetInt("imap.port")
-			user := viper.GetString("imap.user")
-			password := viper.GetString("imap.password")
-			serverPort := fmt.Sprintf("%s:%d", server, port)
-
-			log.Debug().Msgf("Listing folders on %s for user %s", serverPort, user)
-			folders, err := imap.ListFolders(serverPort, user, password)
+			account := cmd.Context().Value("account").(imap.Account)
+			folders, err := imap.ListFolders(account)
 			if err != nil {
 				log.Fatal().Msgf("Error listing folders: %v", err)
 			}
@@ -35,6 +29,7 @@ func ListFolders() *cobra.Command {
 	return cmd
 }
 
+// SearchFolder searches a folder for messages based on various criteria
 func SearchFolder() *cobra.Command {
 	var (
 		endDate   string
@@ -50,6 +45,7 @@ func SearchFolder() *cobra.Command {
 		Short: "search the specified folder for messages",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			account := cmd.Context().Value("account").(imap.Account)
 			searchOpts := buildSearchOptions(to, from, subject, startDate, endDate, unseen)
 
 			var criteria *imap2.SearchCriteria
@@ -59,7 +55,7 @@ func SearchFolder() *cobra.Command {
 				criteria = imap.BuildSearchCriteria(searchOpts)
 			}
 
-			messages, err := imap.SearchMessages(args[0], criteria)
+			messages, err := imap.SearchMessages(account, args[0], criteria)
 			if err != nil {
 				log.Fatal().Msgf("Error searching folder %s: %v", args[0], err)
 			}
@@ -80,47 +76,7 @@ func SearchFolder() *cobra.Command {
 	return cmd
 }
 
-func buildSearchOptions(to, from, subject, startDate, endDate string, unseen bool) imap.SearchOptions {
-	searchOpts := imap.SearchOptions{}
-
-	if to != "" {
-		searchOpts.To = util.StringPtr(to)
-	}
-	if from != "" {
-		searchOpts.From = util.StringPtr(from)
-	}
-	if subject != "" {
-		searchOpts.Subject = util.StringPtr(subject)
-	}
-	if startDate != "" {
-		log.Debug().Msgf("Parsing start date: %s", startDate)
-		timeDate, err := util.DateFromString(startDate)
-		if err != nil {
-			log.Fatal().Msgf("Error parsing start date %s: %v", startDate, err)
-		}
-		searchOpts.StartDate = util.TimePtr(timeDate)
-	}
-	if endDate != "" {
-		log.Debug().Msgf("Parsing end date: %s", endDate)
-		timeDate, err := util.DateFromString(endDate)
-		if err != nil {
-			log.Fatal().Msgf("Error parsing end date %s: %v", endDate, err)
-		}
-		// Add one day to consider the entire end date
-		endTime := timeDate.AddDate(0, 0, 1)
-		searchOpts.EndDate = util.TimePtr(endTime)
-	}
-	if unseen {
-		searchOpts.Seen = util.BoolPtr(false)
-	} else {
-		searchOpts.Seen = util.BoolPtr(true)
-	}
-
-	log.Debug().Msgf("Search options built: %+v", searchOpts)
-
-	return searchOpts
-}
-
+// CountMessagesBySender lists all the senders represented mailbox by how many messages they sent
 func CountMessagesBySender() *cobra.Command {
 	var threshold int
 	cmd := &cobra.Command{
@@ -128,7 +84,8 @@ func CountMessagesBySender() *cobra.Command {
 		Short: "print a list of senders in the configured mailbox",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			data, err := imap.CountMessagesBySender(args[0], threshold)
+			account := cmd.Context().Value("account").(imap.Account)
+			data, err := imap.CountMessagesBySender(account, args[0], threshold)
 			if err != nil {
 				log.Fatal().Msgf("Error counting messages: %v", err)
 			}

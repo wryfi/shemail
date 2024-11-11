@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/wryfi/shemail/config"
 	"github.com/wryfi/shemail/logging"
@@ -18,7 +20,24 @@ func SheMailCommand() *cobra.Command {
 		Use:   "shemail",
 		Short: "shemail: sh email client",
 		Long:  `shemail is an imap client for the shell, to help you quickly organize your mailboxes`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			accountRequest, err := cmd.Flags().GetString("account")
+			if err != nil {
+				return fmt.Errorf("could not get account name: %v", err)
+			}
+			log.Debug().Msgf("requested account %s", accountRequest)
+
+			account, err := getAccount(accountRequest)
+			if err != nil {
+				return fmt.Errorf("failed to find requested account; check your configuration")
+			}
+
+			// Store the account in the command's context for subcommands to access
+			cmd.SetContext(context.WithValue(cmd.Context(), "account", account))
+			return nil
+		},
 	}
+	command.PersistentFlags().StringP("account", "a", "default", "account name")
 	return command
 }
 
