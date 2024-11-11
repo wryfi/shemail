@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/wryfi/shemail/imap"
+	"github.com/wryfi/shemail/imaputils"
 	"github.com/wryfi/shemail/util"
 )
 
-func getAccount(identifier string) (imap.Account, error) {
+func getAccount(identifier string) (imaputils.Account, error) {
 	accounts, err := parseAccounts()
 	if err != nil {
 		log.Fatal().Msgf("failed to parse imap accounts from config file")
@@ -28,11 +28,11 @@ func getAccount(identifier string) (imap.Account, error) {
 			}
 		}
 	}
-	return imap.Account{}, fmt.Errorf("account %q not found", identifier)
+	return imaputils.Account{}, fmt.Errorf("account %q not found", identifier)
 }
 
-func parseAccounts() ([]imap.Account, error) {
-	var accounts []imap.Account
+func parseAccounts() ([]imaputils.Account, error) {
+	var accounts []imaputils.Account
 	if err := viper.UnmarshalKey("accounts", &accounts); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal accounts: %w", err)
 	}
@@ -40,8 +40,8 @@ func parseAccounts() ([]imap.Account, error) {
 }
 
 // buildSearchOptions returns a SearchOptions struct from cobra command parameters
-func buildSearchOptions(to, from, subject, startDate, endDate string, seen, unseen bool) imap.SearchOptions {
-	searchOpts := imap.SearchOptions{}
+func buildSearchOptions(to, from, subject, startDate, endDate string, seen, unseen bool) imaputils.SearchOptions {
+	searchOpts := imaputils.SearchOptions{}
 
 	if to != "" {
 		searchOpts.To = util.StringPtr(to)

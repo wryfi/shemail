@@ -1,4 +1,4 @@
-package imap
+package imaputils
 
 import (
 	"fmt"
@@ -9,12 +9,16 @@ import (
 
 // MoveMessages moves a slice of messages to the specified destination folder.
 // It uses concurrent operations to optimize performance for large message sets.
-func MoveMessages(account Account, messages []*imap.Message, destFolder string, batchSize int) error {
-	imapClient, err := GetImapClient(account)
+func MoveMessages(account Account, messages []*imap.Message, sourceFolder, destFolder string, batchSize int) error {
+	imapClient, err := connectAndSelectMailbox(account, sourceFolder)
 	if err != nil {
 		return fmt.Errorf("failed to connect to server: %w", err)
 	}
 	defer imapClient.Logout()
+
+	for _, message := range messages {
+		log.Debug().Msgf("%d", message.Uid)
+	}
 
 	// Ensure destination folder exists
 	if err := EnsureFolder(account, destFolder); err != nil {
@@ -25,7 +29,7 @@ func MoveMessages(account Account, messages []*imap.Message, destFolder string, 
 		batchSize = 100 // Default batch size if not specified
 	}
 
-	// Create batches of message UIDs
+	// Create batches of messages
 	var batches [][]*imap.Message
 	for i := 0; i < len(messages); i += batchSize {
 		end := i + batchSize
@@ -40,18 +44,50 @@ func MoveMessages(account Account, messages []*imap.Message, destFolder string, 
 	for _, batch := range batches {
 		batch := batch // Create local variable for goroutine
 		g.Go(func() error {
-			// Create sequence set for the batch
 			seqSet := new(imap.SeqSet)
 			for _, msg := range batch {
 				seqSet.AddNum(msg.Uid)
 			}
 
-			// Move messages in the batch
-			return imapClient.UidMove(seqSet, destFolder)
+			if err := imapClient.UidMove(seqSet, destFolder); err != nil {
+				return fmt.Errorf("failed to move batch: %w", err)
+			}
+			return nil
 		})
 	}
 
-	return g.Wait()
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("error moving messages: %w", err)
+	}
+
+	// Simple verification: check if messages are no longer in source folder
+	_, err = imapClient.Select(sourceFolder, false)
+	if err != nil {
+		return fmt.Errorf("failed to select source folder for verification: %w", err)
+	}
+
+	for _, msg := range messages {
+		seqSet := new(imap.SeqSet)
+		seqSet.AddNum(msg.Uid)
+
+		fetch := make(chan *imap.Message, 1)
+		done := make(chan error, 1)
+
+		go func() {
+			done <- imapClient.UidFetch(seqSet, []imap.FetchItem{imap.FetchUid}, fetch)
+		}()
+
+		messageFound := false
+		for range fetch {
+			messageFound = true
+		}
+
+		if err := <-done; err == nil && messageFound {
+			return fmt.Errorf("message UID %d still found in source folder after move", msg.Uid)
+		}
+	}
+
+	return nil
 }
 
 // EnsureFolder checks if a folder exists and creates it if it doesn't.

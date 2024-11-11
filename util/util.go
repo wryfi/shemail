@@ -1,10 +1,13 @@
 package util
 
 import (
+	"bufio"
+	"fmt"
 	"github.com/emersion/go-imap"
 	"github.com/olekukonko/tablewriter"
-	sheimap "github.com/wryfi/shemail/imap"
+	"github.com/wryfi/shemail/imaputils"
 	"os"
+	"strings"
 	"time"
 	"unicode/utf8"
 )
@@ -61,8 +64,8 @@ func TabulateMessages(messages []*imap.Message) *tablewriter.Table {
 			subject = TruncateString(message.Envelope.Subject, 60)
 		}
 		date := message.InternalDate.String()
-		from := TruncateString(sheimap.FormatAddressesCSV(message.Envelope.From), 30)
-		to := sheimap.FormatAddressesCSV(message.Envelope.To)
+		from := TruncateString(imaputils.FormatAddressesCSV(message.Envelope.From), 30)
+		to := imaputils.FormatAddressesCSV(message.Envelope.To)
 		table.Append([]string{date, from, to, subject})
 
 	}
@@ -80,4 +83,29 @@ func TabulateSenders(data [][]string) *tablewriter.Table {
 	}
 
 	return table
+}
+
+// GetConfirmation prompts the user for confirmation before proceeding
+func GetConfirmation(prompt string) bool {
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Printf("%s [y/n]: ", prompt)
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading input:", err)
+			return false
+		}
+
+		response = strings.ToLower(strings.TrimSpace(response))
+
+		switch response {
+		case "y", "yes":
+			return true
+		case "n", "no":
+			return false
+		default:
+			fmt.Println("Please answer with yes/no or y/n")
+		}
+	}
 }

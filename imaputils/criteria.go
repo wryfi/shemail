@@ -1,4 +1,4 @@
-package imap
+package imaputils
 
 import (
 	"encoding/json"

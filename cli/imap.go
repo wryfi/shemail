@@ -2,9 +2,9 @@ package cli
 
 import (
 	"fmt"
-	imap2 "github.com/emersion/go-imap"
+	"github.com/emersion/go-imap"
 	"github.com/spf13/cobra"
-	"github.com/wryfi/shemail/imap"
+	"github.com/wryfi/shemail/imaputils"
 	"github.com/wryfi/shemail/util"
 )
 
@@ -15,8 +15,8 @@ func ListFolders() *cobra.Command {
 		Aliases: []string{"folders"},
 		Short:   "print a list of folders in the configured mailbox",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			account := cmd.Context().Value("account").(imap.Account)
-			folders, err := imap.ListFolders(account)
+			account := cmd.Context().Value("account").(imaputils.Account)
+			folders, err := imaputils.ListFolders(account)
 			if err != nil {
 				log.Fatal().Msgf("Error listing folders: %v", err)
 			}
@@ -41,6 +41,7 @@ func SearchFolder() *cobra.Command {
 		to        string
 		unread    bool
 		read      bool
+		moveTo    string
 	)
 	cmd := &cobra.Command{
 		Use:     "find <folder>",
@@ -48,24 +49,34 @@ func SearchFolder() *cobra.Command {
 		Aliases: []string{"search"},
 		Args:    validateFolderArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			account := cmd.Context().Value("account").(imap.Account)
+			account := cmd.Context().Value("account").(imaputils.Account)
 			searchOpts := buildSearchOptions(to, from, subject, startDate, endDate, read, unread)
 
-			var criteria *imap2.SearchCriteria
+			var criteria *imap.SearchCriteria
 			if or {
-				criteria = imap.BuildORSearchCriteria(searchOpts)
+				criteria = imaputils.BuildORSearchCriteria(searchOpts)
 			} else {
-				criteria = imap.BuildSearchCriteria(searchOpts)
+				criteria = imaputils.BuildSearchCriteria(searchOpts)
 			}
 
-			messages, err := imap.SearchMessages(account, args[0], criteria)
+			messages, err := imaputils.SearchMessages(account, args[0], criteria)
 			if err != nil {
 				log.Fatal().Msgf("Error searching folder %s: %v", args[0], err)
 			}
 
 			table := util.TabulateMessages(messages)
-
 			table.Render()
+
+			if moveTo != "" {
+				if util.GetConfirmation(fmt.Sprintf("really move %d messages to %s?", len(messages), moveTo)) {
+					err := imaputils.MoveMessages(account, messages, args[0], moveTo, 100)
+					if err != nil {
+						log.Fatal().Msgf("failed to move messages to %s: %v", moveTo, err)
+					}
+				} else {
+					fmt.Println("operation cancelled")
+				}
+			}
 			return nil
 		},
 	}
@@ -74,9 +85,10 @@ func SearchFolder() *cobra.Command {
 	cmd.Flags().StringVarP(&subject, "subject", "s", "", "match subject")
 	cmd.Flags().StringVarP(&startDate, "after", "a", "", "find messages received after date (format: `2006-02-01`)")
 	cmd.Flags().StringVarP(&endDate, "before", "b", "", "find messages received before date (format: `2006-02-01`)")
-	cmd.Flags().BoolVar(&unread, "unread", false, "find only unread messages")
-	cmd.Flags().BoolVar(&read, "read", false, "find only unseen messages")
+	cmd.Flags().BoolVarP(&unread, "unread", "u", false, "find only unread messages")
+	cmd.Flags().BoolVarP(&read, "read", "r", false, "find only read messages")
 	cmd.Flags().BoolVarP(&or, "or", "o", false, "OR search criteria instead of AND")
+	cmd.Flags().StringVarP(&moveTo, "move", "m", "", "move messages to <folder>")
 	return cmd
 }
 
@@ -88,8 +100,8 @@ func CountMessagesBySender() *cobra.Command {
 		Short: "print a list of senders in the configured mailbox",
 		Args:  validateFolderArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			account := cmd.Context().Value("account").(imap.Account)
-			data, err := imap.CountMessagesBySender(account, args[0], threshold)
+			account := cmd.Context().Value("account").(imaputils.Account)
+			data, err := imaputils.CountMessagesBySender(account, args[0], threshold)
 			if err != nil {
 				log.Fatal().Msgf("Error counting messages: %v", err)
 			}
@@ -114,8 +126,8 @@ func CreateFolder() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			account := cmd.Context().Value("account").(imap.Account)
-			if err := imap.EnsureFolder(account, args[0]); err != nil {
+			account := cmd.Context().Value("account").(imaputils.Account)
+			if err := imaputils.EnsureFolder(account, args[0]); err != nil {
 				return err
 			}
 			return nil

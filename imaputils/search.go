@@ -1,4 +1,4 @@
-package imap
+package imaputils
 
 import (
 	"encoding/json"
@@ -32,24 +32,24 @@ func (opts SearchOptions) Serialize() string {
 func SearchMessages(account Account, mailbox string, criteria *imap.SearchCriteria) ([]*imap.Message, error) {
 	imapClient, err := connectAndSelectMailbox(account, mailbox)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to mailbox: %w", err)
 	}
 	defer imapClient.Logout()
 
 	if err := logServerCapabilities(imapClient); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to log server capabilities: %w", err)
 	}
 
-	seqNums, err := searchMessageSequences(imapClient, criteria)
+	uids, err := findMessageUIDs(imapClient, criteria)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(seqNums) == 0 {
+	if len(uids) == 0 {
 		return []*imap.Message{}, nil
 	}
 
-	messages, err := fetchMessages(imapClient, seqNums)
+	messages, err := fetchMessagesByUID(imapClient, uids)
 	if err != nil {
 		return nil, err
 	}
@@ -72,37 +72,65 @@ func logServerCapabilities(imapClient *client.Client) error {
 	return nil
 }
 
-// searchMessageSequences performs the IMAP search and returns sequence numbers
-func searchMessageSequences(imapClient *client.Client, criteria *imap.SearchCriteria) ([]uint32, error) {
-	seqNums, err := imapClient.Search(criteria)
+// findMessageUIDs searches for messages matching the criteria and returns their UIDs
+func findMessageUIDs(client *client.Client, criteria *imap.SearchCriteria) ([]uint32, error) {
+	uids, err := client.UidSearch(criteria)
 	if err != nil {
-		return nil, fmt.Errorf("search failed: %w", err)
+		return nil, fmt.Errorf("failed to search messages: %w", err)
 	}
-	return seqNums, nil
+	return uids, nil
 }
 
-// fetchMessages retrieves the full message data for the given sequence numbers
-func fetchMessages(imapClient *client.Client, seqNums []uint32) ([]*imap.Message, error) {
+// fetchMessagesByUID fetches full message data for the given UIDs
+func fetchMessagesByUID(client *client.Client, uids []uint32) ([]*imap.Message, error) {
 	seqSet := new(imap.SeqSet)
-	seqSet.AddNum(seqNums...)
+	seqSet.AddNum(uids...)
 
-	messages := make(chan *imap.Message, 10)
+	messages := make(chan *imap.Message)
 	done := make(chan error, 1)
-	var results []*imap.Message
+
+	items := getFetchItems()
 
 	go func() {
-		done <- imapClient.Fetch(seqSet, []imap.FetchItem{
-			imap.FetchAll,
-		}, messages)
+		done <- client.UidFetch(seqSet, items, messages)
 	}()
 
+	var result []*imap.Message
 	for msg := range messages {
-		results = append(results, msg)
+		result = append(result, msg)
 	}
 
 	if err := <-done; err != nil {
-		return nil, fmt.Errorf("fetch failed: %w", err)
+		return nil, fmt.Errorf("failed to fetch messages: %w", err)
 	}
 
-	return results, nil
+	return result, nil
+}
+
+// getFetchItems returns the list of items to fetch for each message
+func getFetchItems() []imap.FetchItem {
+	return []imap.FetchItem{
+		imap.FetchEnvelope,
+		imap.FetchFlags,
+		imap.FetchInternalDate,
+		imap.FetchRFC822Size,
+		imap.FetchUid,
+	}
+}
+
+// batchMessages splits a slice of messages into batches of the specified size
+func batchMessages(messages []*imap.Message, batchSize int) [][]*imap.Message {
+	if batchSize <= 0 {
+		batchSize = 100 // Default batch size
+	}
+
+	var batches [][]*imap.Message
+	for i := 0; i < len(messages); i += batchSize {
+		end := i + batchSize
+		if end > len(messages) {
+			end = len(messages)
+		}
+		batches = append(batches, messages[i:end])
+	}
+	return batches
 }
