@@ -40,7 +40,7 @@ func parseAccounts() ([]imap.Account, error) {
 }
 
 // buildSearchOptions returns a SearchOptions struct from cobra command parameters
-func buildSearchOptions(to, from, subject, startDate, endDate string, unseen bool) imap.SearchOptions {
+func buildSearchOptions(to, from, subject, startDate, endDate string, seen, unseen bool) imap.SearchOptions {
 	searchOpts := imap.SearchOptions{}
 
 	if to != "" {
@@ -70,11 +70,8 @@ func buildSearchOptions(to, from, subject, startDate, endDate string, unseen boo
 		endTime := timeDate.AddDate(0, 0, 1)
 		searchOpts.EndDate = util.TimePtr(endTime)
 	}
-	if unseen {
-		searchOpts.Seen = util.BoolPtr(false)
-	} else {
-		searchOpts.Seen = util.BoolPtr(true)
-	}
+	searchOpts.Seen = util.BoolPtr(seen)
+	searchOpts.Unseen = util.BoolPtr(unseen)
 
 	log.Debug().Msgf("Search options built: %s", searchOpts.Serialize())
 

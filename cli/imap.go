@@ -8,11 +8,12 @@ import (
 	"github.com/wryfi/shemail/util"
 )
 
-// ListFolders prints a list of imap folders on terminal
+// ListFolders generates a command to print a list of imap folders on terminal
 func ListFolders() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "folders",
-		Short: "print a list of folders in the configured mailbox",
+		Use:     "ls",
+		Aliases: []string{"folders"},
+		Short:   "print a list of folders in the configured mailbox",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imap.Account)
 			folders, err := imap.ListFolders(account)
@@ -29,7 +30,7 @@ func ListFolders() *cobra.Command {
 	return cmd
 }
 
-// SearchFolder searches a folder for messages based on various criteria
+// SearchFolder generates a command to search a folder for messages based on various criteria
 func SearchFolder() *cobra.Command {
 	var (
 		endDate   string
@@ -38,15 +39,17 @@ func SearchFolder() *cobra.Command {
 		startDate string
 		subject   string
 		to        string
-		unseen    bool
+		unread    bool
+		read      bool
 	)
 	cmd := &cobra.Command{
-		Use:   "search <folder>",
-		Short: "search the specified folder for messages",
-		Args:  validateFolderArg,
+		Use:     "find <folder>",
+		Short:   "search the specified folder for messages",
+		Aliases: []string{"search"},
+		Args:    validateFolderArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imap.Account)
-			searchOpts := buildSearchOptions(to, from, subject, startDate, endDate, unseen)
+			searchOpts := buildSearchOptions(to, from, subject, startDate, endDate, read, unread)
 
 			var criteria *imap2.SearchCriteria
 			if or {
@@ -66,17 +69,18 @@ func SearchFolder() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVarP(&or, "or", "o", false, "OR search criteria instead of AND")
-	cmd.Flags().BoolVar(&unseen, "unseen", false, "find unseen messages")
-	cmd.Flags().StringVarP(&from, "from", "f", "", "find messages from this address")
 	cmd.Flags().StringVarP(&to, "to", "t", "", "find messages to this address")
+	cmd.Flags().StringVarP(&from, "from", "f", "", "find messages from this address")
 	cmd.Flags().StringVarP(&subject, "subject", "s", "", "match subject")
 	cmd.Flags().StringVarP(&startDate, "after", "a", "", "find messages received after date (format: `2006-02-01`)")
 	cmd.Flags().StringVarP(&endDate, "before", "b", "", "find messages received before date (format: `2006-02-01`)")
+	cmd.Flags().BoolVar(&unread, "unread", false, "find only unread messages")
+	cmd.Flags().BoolVar(&read, "read", false, "find only unseen messages")
+	cmd.Flags().BoolVarP(&or, "or", "o", false, "OR search criteria instead of AND")
 	return cmd
 }
 
-// CountMessagesBySender lists all the senders represented mailbox by how many messages they sent
+// CountMessagesBySender generates a command to list all the senders represented mailbox by how many messages they sent
 func CountMessagesBySender() *cobra.Command {
 	var threshold int
 	cmd := &cobra.Command{
@@ -98,7 +102,7 @@ func CountMessagesBySender() *cobra.Command {
 	return cmd
 }
 
-// CreateFolder recursively creates the requested imap folder in account
+// CreateFolder generates a command to recursively create the requested imap folder in account
 func CreateFolder() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mkdir <path>",

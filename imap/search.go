@@ -15,6 +15,7 @@ type SearchOptions struct {
 	StartDate *time.Time // Optional start date
 	EndDate   *time.Time // Optional end date
 	Seen      *bool      // Optional seen flag
+	Unseen    *bool      // Optional unseen flag
 }
 
 func (opts SearchOptions) Serialize() string {
@@ -134,12 +135,14 @@ func BuildSearchCriteria(opts SearchOptions) *imap.SearchCriteria {
 		if *opts.Seen {
 			criteria.WithFlags = []string{imap.SeenFlag}
 			log.Debug().Msgf("Adding Seen criterion")
-		} else {
+		}
+	}
+
+	if opts.Unseen != nil {
+		if *opts.Unseen {
 			criteria.WithoutFlags = []string{imap.SeenFlag}
 			log.Debug().Msgf("Adding Unseen criterion")
 		}
-	} else {
-		log.Debug().Msgf("No seen/unseen flag set; searching all messages")
 	}
 
 	log.Debug().Msgf("Final search criteria: %+v", serializeCriteria(criteria))
