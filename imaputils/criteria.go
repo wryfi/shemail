@@ -19,10 +19,7 @@ func BuildSearchCriteria(opts SearchOptions) *imap.SearchCriteria {
 
 // serializeCriteria serializes search criteria to json
 func serializeCriteria(criteria *imap.SearchCriteria) string {
-	jsonBytes, err := json.MarshalIndent(criteria, "", "  ")
-	if err != nil {
-		log.Fatal().Msg("failed to serialize search options to JSON")
-	}
+	jsonBytes, _ := json.MarshalIndent(criteria, "", "  ")
 	return string(jsonBytes)
 }
 

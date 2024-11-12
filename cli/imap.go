@@ -18,7 +18,7 @@ func ListFolders() *cobra.Command {
 			account := cmd.Context().Value("account").(imaputils.Account)
 			folders, err := imaputils.ListFolders(account)
 			if err != nil {
-				log.Fatal().Msgf("Error listing folders: %v", err)
+				return fmt.Errorf("Error listing folders: %w", err)
 			}
 
 			for _, folder := range folders {
@@ -33,15 +33,16 @@ func ListFolders() *cobra.Command {
 // SearchFolder generates a command to search a folder for messages based on various criteria
 func SearchFolder() *cobra.Command {
 	var (
-		endDate   string
-		from      string
-		or        bool
-		startDate string
-		subject   string
-		to        string
-		unread    bool
-		read      bool
-		moveTo    string
+		endDate    string
+		from       string
+		or         bool
+		startDate  string
+		subject    string
+		to         string
+		unread     bool
+		read       bool
+		moveTo     string
+		deleteFrom bool
 	)
 	cmd := &cobra.Command{
 		Use:     "find <folder>",
@@ -50,7 +51,10 @@ func SearchFolder() *cobra.Command {
 		Args:    validateFolderArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imaputils.Account)
-			searchOpts := buildSearchOptions(to, from, subject, startDate, endDate, read, unread)
+			searchOpts, err := buildSearchOptions(to, from, subject, startDate, endDate, read, unread)
+			if err != nil {
+				return fmt.Errorf("Error building search options: %v", err)
+			}
 
 			var criteria *imap.SearchCriteria
 			if or {
@@ -61,7 +65,7 @@ func SearchFolder() *cobra.Command {
 
 			messages, err := imaputils.SearchMessages(account, args[0], criteria)
 			if err != nil {
-				log.Fatal().Msgf("Error searching folder %s: %v", args[0], err)
+				return fmt.Errorf("Error searching folder %s: %w", args[0], err)
 			}
 
 			table := util.TabulateMessages(messages)
@@ -71,12 +75,24 @@ func SearchFolder() *cobra.Command {
 				if util.GetConfirmation(fmt.Sprintf("really move %d messages to %s?", len(messages), moveTo)) {
 					err := imaputils.MoveMessages(account, messages, args[0], moveTo, 100)
 					if err != nil {
-						log.Fatal().Msgf("failed to move messages to %s: %v", moveTo, err)
+						return fmt.Errorf("failed to move messages to %s: %w", moveTo, err)
 					}
 				} else {
 					fmt.Println("operation cancelled")
 				}
 			}
+
+			if deleteFrom {
+				if util.GetConfirmation(fmt.Sprintf("really delete %d messages from %s?", len(messages), args[0])) {
+					err := imaputils.DeleteMessages(account, messages, args[0])
+					if err != nil {
+						return fmt.Errorf("failed to delete messages from %s: %w", args[0], err)
+					}
+				} else {
+					fmt.Println("operation cancelled")
+				}
+			}
+
 			return nil
 		},
 	}
@@ -89,6 +105,7 @@ func SearchFolder() *cobra.Command {
 	cmd.Flags().BoolVarP(&read, "read", "r", false, "find only read messages")
 	cmd.Flags().BoolVarP(&or, "or", "o", false, "OR search criteria instead of AND")
 	cmd.Flags().StringVarP(&moveTo, "move", "m", "", "move messages to <folder>")
+	cmd.Flags().BoolVarP(&deleteFrom, "delete", "d", false, "delete messages")
 	return cmd
 }
 
@@ -103,7 +120,7 @@ func CountMessagesBySender() *cobra.Command {
 			account := cmd.Context().Value("account").(imaputils.Account)
 			data, err := imaputils.CountMessagesBySender(account, args[0], threshold)
 			if err != nil {
-				log.Fatal().Msgf("Error counting messages: %v", err)
+				return fmt.Errorf("error counting messages: %w", err)
 			}
 			table := util.TabulateSenders(data)
 			table.Render()
@@ -121,7 +138,7 @@ func CreateFolder() *cobra.Command {
 		Short: "recursively create imap folder",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				log.Fatal().Msg("you must provide the folder path to create as the first positional argument")
+				return fmt.Errorf("you must provide the folder path to create as the first positional argument")
 			}
 			return nil
 		},

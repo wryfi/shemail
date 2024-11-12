@@ -11,7 +11,7 @@ import (
 func getAccount(identifier string) (imaputils.Account, error) {
 	accounts, err := parseAccounts()
 	if err != nil {
-		log.Fatal().Msgf("failed to parse imap accounts from config file")
+		return imaputils.Account{}, fmt.Errorf("failed to parse imap accounts from config file: %w", err)
 	}
 	if identifier == "default" {
 		log.Debug().Msgf("looking for default account")
@@ -40,7 +40,7 @@ func parseAccounts() ([]imaputils.Account, error) {
 }
 
 // buildSearchOptions returns a SearchOptions struct from cobra command parameters
-func buildSearchOptions(to, from, subject, startDate, endDate string, seen, unseen bool) imaputils.SearchOptions {
+func buildSearchOptions(to, from, subject, startDate, endDate string, seen, unseen bool) (imaputils.SearchOptions, error) {
 	searchOpts := imaputils.SearchOptions{}
 
 	if to != "" {
@@ -56,7 +56,7 @@ func buildSearchOptions(to, from, subject, startDate, endDate string, seen, unse
 		log.Debug().Msgf("Parsing start date: %s", startDate)
 		timeDate, err := util.DateFromString(startDate)
 		if err != nil {
-			log.Fatal().Msgf("Error parsing start date %s: %v", startDate, err)
+			return imaputils.SearchOptions{}, fmt.Errorf("error parsing start date %s: %w", startDate, err)
 		}
 		searchOpts.StartDate = util.TimePtr(timeDate)
 	}
@@ -64,7 +64,7 @@ func buildSearchOptions(to, from, subject, startDate, endDate string, seen, unse
 		log.Debug().Msgf("Parsing end date: %s", endDate)
 		timeDate, err := util.DateFromString(endDate)
 		if err != nil {
-			log.Fatal().Msgf("Error parsing end date %s: %v", endDate, err)
+			return imaputils.SearchOptions{}, fmt.Errorf("error parsing end date %s: %w", endDate, err)
 		}
 		// Add one day to consider the entire end date
 		endTime := timeDate.AddDate(0, 0, 1)

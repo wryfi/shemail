@@ -21,16 +21,13 @@ type SearchOptions struct {
 
 // Serialize serializes SearchOptions to json
 func (opts SearchOptions) Serialize() string {
-	jsonBytes, err := json.MarshalIndent(opts, "", "  ")
-	if err != nil {
-		log.Fatal().Msg("failed to serialize search options to JSON")
-	}
+	jsonBytes, _ := json.MarshalIndent(opts, "", "  ")
 	return string(jsonBytes)
 }
 
 // SearchMessages performs a search for messages in the specified mailbox using given criteria
 func SearchMessages(account Account, mailbox string, criteria *imap.SearchCriteria) ([]*imap.Message, error) {
-	imapClient, err := connectAndSelectMailbox(account, mailbox)
+	imapClient, err := connectToMailbox(account, mailbox, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to mailbox: %w", err)
 	}
