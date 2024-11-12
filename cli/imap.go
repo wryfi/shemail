@@ -16,7 +16,7 @@ func ListFolders() *cobra.Command {
 		Short:   "print a list of folders in the configured mailbox",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imaputils.Account)
-			folders, err := imaputils.ListFolders(account)
+			folders, err := imaputils.ListFolders(imaputils.SheDialer, account)
 			if err != nil {
 				return fmt.Errorf("Error listing folders: %w", err)
 			}
@@ -63,7 +63,7 @@ func SearchFolder() *cobra.Command {
 				criteria = imaputils.BuildSearchCriteria(searchOpts)
 			}
 
-			messages, err := imaputils.SearchMessages(account, args[0], criteria)
+			messages, err := imaputils.SearchMessages(imaputils.SheDialer, account, args[0], criteria)
 			if err != nil {
 				return fmt.Errorf("Error searching folder %s: %w", args[0], err)
 			}
@@ -73,7 +73,7 @@ func SearchFolder() *cobra.Command {
 
 			if moveTo != "" {
 				if util.GetConfirmation(fmt.Sprintf("really move %d messages to %s?", len(messages), moveTo)) {
-					err := imaputils.MoveMessages(account, messages, args[0], moveTo, 100)
+					err := imaputils.MoveMessages(imaputils.SheDialer, account, messages, args[0], moveTo, 100)
 					if err != nil {
 						return fmt.Errorf("failed to move messages to %s: %w", moveTo, err)
 					}
@@ -84,7 +84,7 @@ func SearchFolder() *cobra.Command {
 
 			if deleteFrom {
 				if util.GetConfirmation(fmt.Sprintf("really delete %d messages from %s?", len(messages), args[0])) {
-					err := imaputils.DeleteMessages(account, messages, args[0])
+					err := imaputils.DeleteMessages(imaputils.SheDialer, account, messages, args[0])
 					if err != nil {
 						return fmt.Errorf("failed to delete messages from %s: %w", args[0], err)
 					}
@@ -118,7 +118,7 @@ func CountMessagesBySender() *cobra.Command {
 		Args:  validateFolderArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imaputils.Account)
-			data, err := imaputils.CountMessagesBySender(account, args[0], threshold)
+			data, err := imaputils.CountMessagesBySender(imaputils.SheDialer, account, args[0], threshold)
 			if err != nil {
 				return fmt.Errorf("error counting messages: %w", err)
 			}
@@ -144,7 +144,7 @@ func CreateFolder() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imaputils.Account)
-			if err := imaputils.EnsureFolder(account, args[0]); err != nil {
+			if err := imaputils.EnsureFolder(imaputils.SheDialer, account, args[0]); err != nil {
 				return err
 			}
 			return nil

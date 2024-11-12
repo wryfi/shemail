@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/emersion/go-imap"
-	"github.com/emersion/go-imap/client"
 	"time"
 )
 
@@ -26,8 +25,8 @@ func (opts SearchOptions) Serialize() string {
 }
 
 // SearchMessages performs a search for messages in the specified mailbox using given criteria
-func SearchMessages(account Account, mailbox string, criteria *imap.SearchCriteria) ([]*imap.Message, error) {
-	imapClient, err := connectToMailbox(account, mailbox, true)
+func SearchMessages(dialer IMAPDialer, account Account, mailbox string, criteria *imap.SearchCriteria) ([]*imap.Message, error) {
+	imapClient, err := connectToMailbox(account, mailbox, true, dialer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to mailbox: %w", err)
 	}
@@ -56,21 +55,21 @@ func SearchMessages(account Account, mailbox string, criteria *imap.SearchCriter
 }
 
 // logServerCapabilities retrieves and logs server capabilities
-func logServerCapabilities(imapClient *client.Client) error {
+func logServerCapabilities(imapClient IMAPClient) error {
 	caps, err := imapClient.Capability()
 	if err != nil {
 		return fmt.Errorf("failed to get capabilities: %w", err)
 	}
 
 	log.Debug().Msgf("Server capabilities:")
-	for cap := range caps {
-		log.Debug().Msgf("- %s", cap)
+	for serverCap := range caps {
+		log.Debug().Msgf("- %s", serverCap)
 	}
 	return nil
 }
 
 // findMessageUIDs searches for messages matching the criteria and returns their UIDs
-func findMessageUIDs(client *client.Client, criteria *imap.SearchCriteria) ([]uint32, error) {
+func findMessageUIDs(client IMAPClient, criteria *imap.SearchCriteria) ([]uint32, error) {
 	uids, err := client.UidSearch(criteria)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search messages: %w", err)
@@ -79,7 +78,7 @@ func findMessageUIDs(client *client.Client, criteria *imap.SearchCriteria) ([]ui
 }
 
 // fetchMessagesByUID fetches full message data for the given UIDs
-func fetchMessagesByUID(client *client.Client, uids []uint32) ([]*imap.Message, error) {
+func fetchMessagesByUID(client IMAPClient, uids []uint32) ([]*imap.Message, error) {
 	seqSet := new(imap.SeqSet)
 	seqSet.AddNum(uids...)
 
@@ -113,21 +112,4 @@ func getFetchItems() []imap.FetchItem {
 		imap.FetchRFC822Size,
 		imap.FetchUid,
 	}
-}
-
-// batchMessages splits a slice of messages into batches of the specified size
-func batchMessages(messages []*imap.Message, batchSize int) [][]*imap.Message {
-	if batchSize <= 0 {
-		batchSize = 100 // Default batch size
-	}
-
-	var batches [][]*imap.Message
-	for i := 0; i < len(messages); i += batchSize {
-		end := i + batchSize
-		if end > len(messages) {
-			end = len(messages)
-		}
-		batches = append(batches, messages[i:end])
-	}
-	return batches
 }

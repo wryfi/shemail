@@ -15,16 +15,16 @@ var DeletedFolderNames = []string{
 }
 
 // DeleteMessages deletes the list of messages based on the account's deletion strategy
-func DeleteMessages(account Account, messages []*imap.Message, folder string) error {
+func DeleteMessages(dialer IMAPDialer, account Account, messages []*imap.Message, folder string) error {
 	var err error
 	if len(messages) == 0 {
 		return nil
 	}
 	if account.Purge {
 		log.Debug().Msgf("will purge messages from this folder")
-		err = purgeMessages(account, folder, messages)
+		err = purgeMessages(account, folder, messages, dialer)
 	} else {
-		err = moveToTrash(account, folder, messages)
+		err = moveToTrash(dialer, account, folder, messages)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to delete messages: %w", err)
@@ -33,20 +33,20 @@ func DeleteMessages(account Account, messages []*imap.Message, folder string) er
 }
 
 // moveToTrash moves a list of messages to a trash/deleted folder
-func moveToTrash(account Account, folder string, messages []*imap.Message) error {
-	trashFolder, err := findTrashFolder(account)
+func moveToTrash(dialer IMAPDialer, account Account, folder string, messages []*imap.Message) error {
+	trashFolder, err := findTrashFolder(dialer, account)
 	if err != nil {
 		return fmt.Errorf("failed to find trash folder: %w", err)
 	}
-	if err := MoveMessages(account, messages, folder, trashFolder, 100); err != nil {
+	if err := MoveMessages(dialer, account, messages, folder, trashFolder, 100); err != nil {
 		return fmt.Errorf("failed to move messages from %s to %s: %w", folder, trashFolder, err)
 	}
 	return nil
 }
 
 // findTrashFolder searches account folders for common trash folder names
-func findTrashFolder(account Account) (string, error) {
-	mailboxes, err := ListFolders(account)
+func findTrashFolder(dialer IMAPDialer, account Account) (string, error) {
+	mailboxes, err := ListFolders(dialer, account)
 	if err != nil {
 		return "", fmt.Errorf("failed to list folders: %w", err)
 	}
@@ -61,8 +61,8 @@ func findTrashFolder(account Account) (string, error) {
 }
 
 // purgeMessages permanently deletes a list of messages from a folder
-func purgeMessages(account Account, folder string, messages []*imap.Message) error {
-	imapClient, err := connectToMailbox(account, folder, false)
+func purgeMessages(account Account, folder string, messages []*imap.Message, dialer IMAPDialer) error {
+	imapClient, err := connectToMailbox(account, folder, false, dialer)
 	if err != nil {
 		return fmt.Errorf("failed to connect to mailbox: %w", err)
 	}

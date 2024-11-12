@@ -16,7 +16,7 @@ type SenderCount struct {
 }
 
 // CountMessagesBySender counts the messages from a given sender with improved performance.
-func CountMessagesBySender(account Account, folder string, threshold int) ([][]string, error) {
+func CountMessagesBySender(dialer IMAPDialer, account Account, folder string, threshold int) ([][]string, error) {
 	// Only fetch the fields we need for counting by sender
 	fields := MessageFields{
 		Envelope: true,
@@ -24,7 +24,7 @@ func CountMessagesBySender(account Account, folder string, threshold int) ([][]s
 		BodyPeek: true,
 	}
 
-	messages, err := FetchMessages(account, folder, fields)
+	messages, err := FetchMessages(dialer, account, folder, fields)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching messages from folder %s: %w", folder, err)
 	}

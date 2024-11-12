@@ -9,8 +9,8 @@ import (
 
 // MoveMessages moves a slice of messages to the specified destination folder.
 // It uses concurrent operations to optimize performance for large message sets.
-func MoveMessages(account Account, messages []*imap.Message, sourceFolder, destFolder string, batchSize int) error {
-	imapClient, err := connectToMailbox(account, sourceFolder, false)
+func MoveMessages(dialer IMAPDialer, account Account, messages []*imap.Message, sourceFolder, destFolder string, batchSize int) error {
+	imapClient, err := connectToMailbox(account, sourceFolder, false, dialer)
 	if err != nil {
 		return fmt.Errorf("failed to connect to server: %w", err)
 	}
@@ -21,7 +21,7 @@ func MoveMessages(account Account, messages []*imap.Message, sourceFolder, destF
 	}
 
 	// Ensure destination folder exists
-	if err := EnsureFolder(account, destFolder); err != nil {
+	if err := EnsureFolder(dialer, account, destFolder); err != nil {
 		return err
 	}
 
@@ -92,8 +92,8 @@ func MoveMessages(account Account, messages []*imap.Message, sourceFolder, destF
 
 // EnsureFolder checks if a folder exists and creates it if it doesn't.
 // It handles nested folders by creating parent folders as needed.
-func EnsureFolder(account Account, folderName string) error {
-	imapClient, err := getImapClient(account)
+func EnsureFolder(dialer IMAPDialer, account Account, folderName string) error {
+	imapClient, err := getImapClient(account, dialer)
 	if err != nil {
 		return fmt.Errorf("failed to init imap client: %w", err)
 	}
