@@ -29,7 +29,7 @@ gmail's IMAP implementation is particularly finicky. YMMV.
 
 ## Demo
 
-<script src="https://asciinema.org/a/689345.js" id="asciicast-689345" async="true"></script>
+[![asciicast](https://asciinema.org/a/689345.svg)](https://asciinema.org/a/689345)
 
 ## Install
 
