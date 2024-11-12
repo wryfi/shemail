@@ -47,5 +47,7 @@ func Execute(cmd *cobra.Command) error {
 	cmd.AddCommand(SearchFolder())
 	cmd.AddCommand(CountMessagesBySender())
 	cmd.AddCommand(CreateFolder())
+	cmd.AddCommand(VersionCommand())
+	cmd.AddCommand(ConfigurationCommand())
 	return cmd.Execute()
 }

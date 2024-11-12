@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/emersion/go-imap"
 	"github.com/olekukonko/tablewriter"
+	"github.com/spf13/viper"
 	"github.com/wryfi/shemail/imaputils"
 	"os"
 	"strings"
@@ -41,6 +42,7 @@ func BoolPtr(b bool) *bool {
 	return &b
 }
 
+// DateFromString takes a date string of format "yyyy-mm-dd" and returns a Time
 func DateFromString(dateStr string) (time.Time, error) {
 	layout := "2006-01-02"
 	date, err := time.Parse(layout, dateStr)
@@ -50,8 +52,41 @@ func DateFromString(dateStr string) (time.Time, error) {
 	return date, nil
 }
 
+// MessageDate represents a normalized message date with timezone handling
+type MessageDate struct {
+	Original   time.Time
+	Normalized time.Time
+}
+
+// NewMessageDate creates a new MessageDate from an IMAP internal date
+func NewMessageDate(internalDate time.Time) MessageDate {
+	// First convert to UTC to normalize
+	utcDate := internalDate.UTC()
+
+	return MessageDate{
+		Original:   internalDate,
+		Normalized: utcDate,
+	}
+}
+
+// LocalizeToZone returns the date in the specified timezone
+func (md MessageDate) LocalizeToZone(timezone *time.Location) time.Time {
+	return md.Normalized.In(timezone)
+}
+
+// FormatConsistent returns a consistently formatted date string in the specified timezone
+func (md MessageDate) FormatConsistent(timezone *time.Location) string {
+	localTime := md.LocalizeToZone(timezone)
+	return localTime.Format("2006-01-02 15:04:05 -0700 MST")
+}
+
 // TabulateMessages takes a list of imap messages and displays them in a table
-func TabulateMessages(messages []*imap.Message) *tablewriter.Table {
+func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
+	tzString := viper.GetString("timezone")
+	tz, err := time.LoadLocation(tzString)
+	if err != nil {
+		return &tablewriter.Table{}, fmt.Errorf("Error loading timezone: %s: %w", tzString, err)
+	}
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader([]string{"Date", "From", "To", "Subject"})
 	table.SetBorder(false)
@@ -63,13 +98,14 @@ func TabulateMessages(messages []*imap.Message) *tablewriter.Table {
 		if message.Envelope.Subject != "" {
 			subject = TruncateString(message.Envelope.Subject, 60)
 		}
-		date := message.InternalDate.String()
+		msgDate := NewMessageDate(message.InternalDate)
+		date := msgDate.FormatConsistent(tz)
 		from := TruncateString(imaputils.FormatAddressesCSV(message.Envelope.From), 30)
 		to := imaputils.FormatAddressesCSV(message.Envelope.To)
 		table.Append([]string{date, from, to, subject})
 
 	}
-	return table
+	return table, nil
 }
 
 // TabulateSenders creates a table from the given data and renders it to the terminal

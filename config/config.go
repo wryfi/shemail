@@ -26,6 +26,7 @@ func GetHome() string {
 func setDefaults() {
 	viper.SetDefault("log.level", "warn")
 	viper.SetDefault("log.pretty", false)
+	viper.SetDefault("timezone", "America/Los_Angeles")
 }
 
 // InitConfig initializes the viper configuration by reading the defaults set

@@ -53,7 +53,7 @@ func SearchFolder() *cobra.Command {
 			account := cmd.Context().Value("account").(imaputils.Account)
 			searchOpts, err := buildSearchOptions(to, from, subject, startDate, endDate, read, unread)
 			if err != nil {
-				return fmt.Errorf("Error building search options: %v", err)
+				return fmt.Errorf("error building search options: %v", err)
 			}
 
 			var criteria *imap.SearchCriteria
@@ -65,11 +65,14 @@ func SearchFolder() *cobra.Command {
 
 			messages, err := imaputils.SearchMessages(imaputils.SheDialer, account, args[0], criteria)
 			if err != nil {
-				return fmt.Errorf("Error searching folder %s: %w", args[0], err)
+				return fmt.Errorf("error searching folder %s: %w", args[0], err)
 			}
 
-			table := util.TabulateMessages(messages)
-			table.Render()
+			if table, err := util.TabulateMessages(messages); err == nil {
+				table.Render()
+			} else {
+				return fmt.Errorf("error tabulating messages: %w", err)
+			}
 
 			if moveTo != "" {
 				if util.GetConfirmation(fmt.Sprintf("really move %d messages to %s?", len(messages), moveTo)) {
