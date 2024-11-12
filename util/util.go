@@ -92,6 +92,7 @@ func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
 	table.SetBorder(false)
 	//table.SetRowLine(true)
 	table.SetAutoWrapText(false)
+	table.SetCaption(true, fmt.Sprintf("Found %d messages", len(messages)))
 
 	for _, message := range messages {
 		subject := "(unknown)"

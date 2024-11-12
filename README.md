@@ -13,18 +13,19 @@ garbage from your inbox.
 
 ## Status
 
+**USE AT YOUR OWN RISK!**
+
 While attempts have been made at creating a robust and predictable tool, there are 
 _many_ more IMAP implementations in the wild than can be reasonably tested.
 IMAP is an old and crufty standard and everyone does it a little differently.
 There is no guarantee that this tool won't eat your homework.
 
-**USE AT YOUR OWN RISK!** 
-
-Consider testing against a dummy account before unleashing on your precious mail,
-and have back-ups of your mailbox available in case something goes wrong.
+Consider testing against a dummy account with your provider before unleashing 
+on your precious mail, and have back-ups of your mailbox available in case
+something goes wrong.
 
 Implementations that have been tested include dovecot, gmail, and icloud. Note that
-Gmail's IMAP implementation is particularly finicky. YMMV.
+gmail's IMAP implementation is particularly finicky. YMMV.
 
 ## Install
 
