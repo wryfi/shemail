@@ -13,7 +13,13 @@ default:
     @just --list --justfile {{ justfile() }}
 
 build:
-    GOARCH=arm64 GOOS=darwin go build -o build/rwx_{{ VERSION }}_darwin_arm64 -ldflags "{{ LDFLAGS }}" .
+    GOARCH=arm64 GOOS=darwin go build -o build/shemail_{{ VERSION }}_darwin_arm64 -ldflags "{{ LDFLAGS }}" .
+    GOARCH=amd64 GOOS=darwin go build -o build/shemail_{{ VERSION }}_darwin_amd64 -ldflags "{{ LDFLAGS }}" .
+    GOARCH=arm64 GOOS=linux go build -o build/shemail_{{ VERSION }}_linux_arm64 -ldflags "{{ LDFLAGS }}" .
+    GOARCH=amd64 GOOS=linux go build -o build/shemail_{{ VERSION }}_linux_amd64 -ldflags "{{ LDFLAGS }}" .
+    GOARCH=arm64 GOOS=windows go build -o build/shemail_{{ VERSION }}_windows_arm64 -ldflags "{{ LDFLAGS }}" .
+    GOARCH=amd64 GOOS=windows go build -o build/shemail_{{ VERSION }}_windows_amd64 -ldflags "{{ LDFLAGS }}" .
+
 
 run *FLAGS:
     go run -ldflags "{{ LDFLAGS }}" . {{FLAGS}}

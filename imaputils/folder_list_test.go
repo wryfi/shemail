@@ -36,6 +36,7 @@ func (m *MockIMAPClientListFolders) Login(username string, password string) erro
 func (m *MockIMAPClientListFolders) Select(name string, readOnly bool) (*imap.MailboxStatus, error) {
 	return nil, nil
 }
+func (m *MockIMAPClientListFolders) UidCopy(seqSet *imap.SeqSet, mailbox string) error { return nil }
 func (m *MockIMAPClientListFolders) UidFetch(seqset *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error {
 	return nil
 }

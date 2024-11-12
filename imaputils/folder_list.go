@@ -7,7 +7,7 @@ import (
 
 // ListFolders lists all folders in the IMAP account
 func ListFolders(dialer IMAPDialer, account Account) ([]string, error) {
-	imapClient, err := getImapClient(account, dialer)
+	imapClient, err := getImapClient(dialer, account)
 	if err != nil {
 		return []string{}, fmt.Errorf("failed to initialize imap client: %w", err)
 	}

@@ -38,7 +38,7 @@ func moveToTrash(dialer IMAPDialer, account Account, folder string, messages []*
 	if err != nil {
 		return fmt.Errorf("failed to find trash folder: %w", err)
 	}
-	if err := MoveMessages(dialer, account, messages, folder, trashFolder, 100); err != nil {
+	if err := MoveMessages(dialer, account, messages, folder, trashFolder, 10); err != nil {
 		return fmt.Errorf("failed to move messages from %s to %s: %w", folder, trashFolder, err)
 	}
 	return nil
@@ -62,7 +62,7 @@ func findTrashFolder(dialer IMAPDialer, account Account) (string, error) {
 
 // purgeMessages permanently deletes a list of messages from a folder
 func purgeMessages(account Account, folder string, messages []*imap.Message, dialer IMAPDialer) error {
-	imapClient, err := connectToMailbox(account, folder, false, dialer)
+	imapClient, err := connectToMailbox(dialer, account, folder, false)
 	if err != nil {
 		return fmt.Errorf("failed to connect to mailbox: %w", err)
 	}

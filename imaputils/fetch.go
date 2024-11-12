@@ -29,7 +29,7 @@ func DefaultMessageFields() MessageFields {
 
 // FetchMessages fetches a list of messages from the specified mailbox with customizable field selection.
 func FetchMessages(dialer IMAPDialer, account Account, mailbox string, fields MessageFields) ([]*imap.Message, error) {
-	imapClient, err := getImapClient(account, dialer)
+	imapClient, err := getImapClient(dialer, account)
 	if err != nil {
 		return nil, fmt.Errorf("error getting imap client: %w", err)
 	}

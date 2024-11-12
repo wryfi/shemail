@@ -26,7 +26,7 @@ func (opts SearchOptions) Serialize() string {
 
 // SearchMessages performs a search for messages in the specified mailbox using given criteria
 func SearchMessages(dialer IMAPDialer, account Account, mailbox string, criteria *imap.SearchCriteria) ([]*imap.Message, error) {
-	imapClient, err := connectToMailbox(account, mailbox, true, dialer)
+	imapClient, err := connectToMailbox(dialer, account, mailbox, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to mailbox: %w", err)
 	}

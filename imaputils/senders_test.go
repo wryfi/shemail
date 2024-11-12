@@ -59,6 +59,7 @@ func (m *MockIMAPClientSenders) Login(username string, password string) error { 
 func (m *MockIMAPClientSenders) Select(name string, readOnly bool) (*imap.MailboxStatus, error) {
 	return nil, nil
 }
+func (m *MockIMAPClientSenders) UidCopy(seqSet *imap.SeqSet, mailbox string) error { return nil }
 func (m *MockIMAPClientSenders) UidMove(seqSet *imap.SeqSet, mailbox string) error { return nil }
 func (m *MockIMAPClientSenders) UidStore(seqSet *imap.SeqSet, item imap.StoreItem, flags []interface{}, ch chan *imap.Message) error {
 	return nil

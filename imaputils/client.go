@@ -33,6 +33,7 @@ type IMAPClient interface {
 	Login(username string, password string) error
 	Logout() error
 	Select(name string, readOnly bool) (*imap.MailboxStatus, error)
+	UidCopy(seqset *imap.SeqSet, dest string) error
 	UidFetch(seqset *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error
 	UidMove(seqSet *imap.SeqSet, mailbox string) error
 	UidSearch(criteria *imap.SearchCriteria) (uids []uint32, err error)
@@ -83,6 +84,10 @@ func (c *ShemailClient) Select(name string, readOnly bool) (*imap.MailboxStatus,
 	return c.Client.Select(name, readOnly)
 }
 
+func (c *ShemailClient) UidCopy(seqset *imap.SeqSet, dest string) error {
+	return c.Client.UidCopy(seqset, dest)
+}
+
 func (c *ShemailClient) UidFetch(seqset *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error {
 	return c.Client.UidFetch(seqset, items, ch)
 }
@@ -128,7 +133,7 @@ func (d *SheMailDialer) DialTLS(address string, config *tls.Config) (IMAPClient,
 }
 
 // getImapClient returns an authenticated IMAP client for the given account
-func getImapClient(account Account, dialer IMAPDialer) (IMAPClient, error) {
+func getImapClient(dialer IMAPDialer, account Account) (IMAPClient, error) {
 	var imapClient IMAPClient
 	serverPort := fmt.Sprintf("%s:%d", account.Server, account.Port)
 
@@ -150,9 +155,9 @@ func getImapClient(account Account, dialer IMAPDialer) (IMAPClient, error) {
 }
 
 // connectToMailbox returns an authenticated IMAP client for the given account and folder
-func connectToMailbox(account Account, folder string, readOnly bool, dialer IMAPDialer) (IMAPClient, error) {
+func connectToMailbox(dialer IMAPDialer, account Account, folder string, readOnly bool) (IMAPClient, error) {
 	// Use getImapClient to establish the connection and authenticate
-	imapClient, err := getImapClient(account, dialer)
+	imapClient, err := getImapClient(dialer, account)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get IMAP client: %w", err)
 	}

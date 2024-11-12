@@ -87,6 +87,13 @@ func (m *TestIMAPClient) Select(name string, readOnly bool) (*imap.MailboxStatus
 	return &imap.MailboxStatus{Messages: m.messages}, nil
 }
 
+func (m *TestIMAPClient) UidCopy(seqset *imap.SeqSet, dest string) error {
+	if m.shouldError {
+		return errors.New("mock uid copy error")
+	}
+	return nil
+}
+
 func (m *TestIMAPClient) UidFetch(seqset *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error {
 	if m.shouldError {
 		return errors.New("mock uid fetch error")

@@ -58,6 +58,11 @@ func (m *MockIMAPClientSearch) Login(username string, password string) error { r
 func (m *MockIMAPClientSearch) Select(name string, readOnly bool) (*imap.MailboxStatus, error) {
 	return nil, nil
 }
+func (m *MockIMAPClientSearch) UidCopy(seqSet *imap.SeqSet, dest string) error { return nil }
+func (m *MockIMAPClientSearch) UidDelete(seqSet *imap.SeqSet) error            { return nil }
+func (m *MockIMAPClientSearch) UidFetchMetadata(seqSet *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error {
+	return nil
+}
 func (m *MockIMAPClientSearch) UidMove(seqSet *imap.SeqSet, mailbox string) error { return nil }
 func (m *MockIMAPClientSearch) UidStore(seqSet *imap.SeqSet, item imap.StoreItem, flags []interface{}, ch chan *imap.Message) error {
 	return nil

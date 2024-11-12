@@ -27,8 +27,10 @@ func (m *MockIMAPClientMove) Create(name string) error {
 
 func (m *MockIMAPClientMove) Expunge(ch chan uint32) error {
 	args := m.Called(ch)
-	// Always close the channel to prevent hanging
-	close(ch)
+	// Only close the channel if it's not nil
+	if ch != nil {
+		close(ch)
+	}
 	return args.Error(0)
 }
 
@@ -74,6 +76,11 @@ func (m *MockIMAPClientMove) Select(name string, readOnly bool) (*imap.MailboxSt
 	return nil, args.Error(1)
 }
 
+func (m *MockIMAPClientMove) UidCopy(seqset *imap.SeqSet, mailbox string) error {
+	args := m.Called(seqset, mailbox)
+	return args.Error(0)
+}
+
 func (m *MockIMAPClientMove) UidFetch(seqset *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error {
 	args := m.Called(seqset, items, ch)
 	if fn, ok := args.Get(0).(func(chan *imap.Message)); ok {
@@ -96,12 +103,17 @@ func (m *MockIMAPClientMove) UidSearch(criteria *imap.SearchCriteria) ([]uint32,
 	return nil, args.Error(1)
 }
 
+// And in UidStore, let's be extra explicit about channel handling:
 func (m *MockIMAPClientMove) UidStore(seqSet *imap.SeqSet, item imap.StoreItem, flags []interface{}, ch chan *imap.Message) error {
 	args := m.Called(seqSet, item, flags, ch)
-	if fn, ok := args.Get(0).(func(chan *imap.Message)); ok {
-		fn(ch)
+	// Only close the channel if it's not nil
+	if ch != nil {
+		if fn, ok := args.Get(0).(func(chan *imap.Message)); ok {
+			fn(ch)
+		} else {
+			close(ch)
+		}
 	}
-	close(ch) // Ensure channel is closed
 	return args.Error(1)
 }
 
@@ -128,6 +140,7 @@ func TestMoveMessages(t *testing.T) {
 		sourceFolder  string
 		destFolder    string
 		batchSize     int
+		account       Account
 		setupMocks    func(*MockIMAPClientMove, *MockIMAPDialerMove)
 		expectedError string
 	}{
@@ -140,17 +153,29 @@ func TestMoveMessages(t *testing.T) {
 			sourceFolder: "INBOX",
 			destFolder:   "Archive",
 			batchSize:    1,
+			account: Account{
+				Server:   "test.example.com",
+				User:     "test@example.com",
+				Password: "password",
+			},
 			setupMocks: func(client *MockIMAPClientMove, dialer *MockIMAPDialerMove) {
-				// Initial connection setup
-				dialer.On("Dial", mock.Anything).Return(client, nil)
+				// We expect multiple connections:
+				// 1. Initial connection for checks
+				// 2. Connection for EnsureFolder
+				// 3. One connection per batch (2 messages, batch size 1 = 2 connections)
+				// 4. Final connection for verification
+				// Total: 5 connections
 
-				// First login
-				client.On("Login", mock.Anything, mock.Anything).Return(nil).Times(2)
+				// Setup dialer expectations
+				dialer.On("Dial", mock.Anything).Return(client, nil).Times(5)
 
-				// Folder operations
-				client.On("Select", "INBOX", false).Return(&imap.MailboxStatus{}, nil).Times(2)
+				// Setup login expectations for all connections
+				client.On("Login", mock.Anything, mock.Anything).Return(nil).Times(5)
 
-				// Check destination folder exists
+				// Select mailbox operations
+				client.On("Select", "INBOX", false).Return(&imap.MailboxStatus{}, nil).Times(4)
+
+				// Check destination folder exists (called during EnsureFolder)
 				client.On("List", "", "Archive", mock.Anything).Return(
 					func(ch chan *imap.MailboxInfo) {
 						ch <- &imap.MailboxInfo{Name: "Archive"}
@@ -158,18 +183,138 @@ func TestMoveMessages(t *testing.T) {
 					nil,
 				)
 
-				// Move operations for each message (since batchSize is 1)
-				client.On("UidMove", mock.Anything, "Archive").Return(nil).Times(2)
+				// Move operations for each batch (one message per batch)
+				client.On("UidMove", mock.MatchedBy(func(seqSet *imap.SeqSet) bool {
+					return true // Add more specific validation if needed
+				}), "Archive").Return(nil).Times(2)
 
-				// Verification operations
-				client.On("UidFetch", mock.Anything, []imap.FetchItem{imap.FetchUid}, mock.Anything).Return(
+				// Verification operations for each message
+				client.On("UidFetch", mock.MatchedBy(func(seqSet *imap.SeqSet) bool {
+					return true // Add more specific validation if needed
+				}), []imap.FetchItem{imap.FetchUid}, mock.Anything).Return(
 					func(ch chan *imap.Message) {},
 					nil,
 				).Times(2)
 
-				client.On("Logout").Return(nil).Times(2)
+				// Logout for each connection
+				client.On("Logout").Return(nil).Times(5)
 			},
 			expectedError: "",
+		},
+		{
+			name: "move to gmail trash",
+			messages: []*imap.Message{
+				{Uid: 1},
+				{Uid: 2},
+			},
+			sourceFolder: "INBOX",
+			destFolder:   "[Gmail]/Trash",
+			batchSize:    1,
+			account: Account{
+				Server:   "imap.gmail.com",
+				User:     "test@gmail.com",
+				Password: "password",
+			},
+			setupMocks: func(client *MockIMAPClientMove, dialer *MockIMAPDialerMove) {
+				// For Gmail trash moves, we only need one connection
+				dialer.On("Dial", mock.Anything).Return(client, nil)
+				client.On("Login", mock.Anything, mock.Anything).Return(nil)
+				client.On("Select", "INBOX", false).Return(&imap.MailboxStatus{}, nil)
+				client.On("UidCopy", mock.MatchedBy(func(s *imap.SeqSet) bool {
+					return true
+				}), "[Gmail]/Trash").Return(nil)
+				client.On("UidStore",
+					mock.MatchedBy(func(s *imap.SeqSet) bool { return true }),
+					imap.FormatFlagsOp(imap.AddFlags, true),
+					[]interface{}{imap.DeletedFlag},
+					(chan *imap.Message)(nil),
+				).Return(nil, nil)
+				client.On("Expunge", (chan uint32)(nil)).Return(nil)
+				client.On("Logout").Return(nil).Once()
+			},
+			expectedError: "",
+		},
+		{
+			name: "gmail trash copy failure",
+			messages: []*imap.Message{
+				{Uid: 1},
+			},
+			sourceFolder: "INBOX",
+			destFolder:   "[Gmail]/Trash",
+			batchSize:    1,
+			account: Account{
+				Server:   "imap.gmail.com",
+				User:     "test@gmail.com",
+				Password: "password",
+			},
+			setupMocks: func(client *MockIMAPClientMove, dialer *MockIMAPDialerMove) {
+				dialer.On("Dial", mock.Anything).Return(client, nil)
+				client.On("Login", mock.Anything, mock.Anything).Return(nil)
+				client.On("Select", "INBOX", false).Return(&imap.MailboxStatus{}, nil)
+				client.On("UidCopy", mock.Anything, "[Gmail]/Trash").Return(fmt.Errorf("copy failed"))
+				// Even in failure case, we should expect a logout
+				client.On("Logout").Return(nil).Once()
+			},
+			expectedError: "failed to copy messages to trash",
+		},
+		{
+			name: "gmail trash store flags failure",
+			messages: []*imap.Message{
+				{Uid: 1},
+			},
+			sourceFolder: "INBOX",
+			destFolder:   "[Gmail]/Trash",
+			batchSize:    1,
+			account: Account{
+				Server:   "imap.gmail.com",
+				User:     "test@gmail.com",
+				Password: "password",
+			},
+			setupMocks: func(client *MockIMAPClientMove, dialer *MockIMAPDialerMove) {
+				dialer.On("Dial", mock.Anything).Return(client, nil)
+				client.On("Login", mock.Anything, mock.Anything).Return(nil)
+				client.On("Select", "INBOX", false).Return(&imap.MailboxStatus{}, nil)
+				client.On("UidCopy", mock.Anything, "[Gmail]/Trash").Return(nil)
+				client.On("UidStore",
+					mock.Anything,
+					mock.Anything,
+					mock.Anything,
+					mock.Anything,
+				).Return(nil, fmt.Errorf("store failed"))
+				// Even in failure case, we should expect a logout
+				client.On("Logout").Return(nil).Once()
+			},
+			expectedError: "failed to flag messages as deleted",
+		},
+		{
+			name: "gmail trash expunge failure",
+			messages: []*imap.Message{
+				{Uid: 1},
+			},
+			sourceFolder: "INBOX",
+			destFolder:   "[Gmail]/Trash",
+			batchSize:    1,
+			account: Account{
+				Server:   "imap.gmail.com",
+				User:     "test@gmail.com",
+				Password: "password",
+			},
+			setupMocks: func(client *MockIMAPClientMove, dialer *MockIMAPDialerMove) {
+				dialer.On("Dial", mock.Anything).Return(client, nil)
+				client.On("Login", mock.Anything, mock.Anything).Return(nil)
+				client.On("Select", "INBOX", false).Return(&imap.MailboxStatus{}, nil)
+				client.On("UidCopy", mock.Anything, "[Gmail]/Trash").Return(nil)
+				client.On("UidStore",
+					mock.Anything,
+					mock.Anything,
+					mock.Anything,
+					mock.Anything,
+				).Return(nil, nil)
+				client.On("Expunge", mock.Anything).Return(fmt.Errorf("expunge failed"))
+				// Even in failure case, we should expect a logout
+				client.On("Logout").Return(nil).Once()
+			},
+			expectedError: "failed to expunge messages",
 		},
 		{
 			name: "connection failure",
@@ -179,7 +324,13 @@ func TestMoveMessages(t *testing.T) {
 			sourceFolder: "INBOX",
 			destFolder:   "Archive",
 			batchSize:    1,
+			account: Account{
+				Server:   "test.example.com",
+				User:     "test@example.com",
+				Password: "password",
+			},
 			setupMocks: func(client *MockIMAPClientMove, dialer *MockIMAPDialerMove) {
+				// No Logout expectation needed here since connection fails
 				dialer.On("Dial", mock.Anything).Return(client, fmt.Errorf("connection failed"))
 			},
 			expectedError: "failed to connect to server",
@@ -192,13 +343,7 @@ func TestMoveMessages(t *testing.T) {
 			mockDialer := &MockIMAPDialerMove{}
 			tt.setupMocks(mockClient, mockDialer)
 
-			account := Account{
-				Server:   "test.example.com",
-				User:     "test@example.com",
-				Password: "password",
-			}
-
-			err := MoveMessages(mockDialer, account, tt.messages, tt.sourceFolder, tt.destFolder, tt.batchSize)
+			err := MoveMessages(mockDialer, tt.account, tt.messages, tt.sourceFolder, tt.destFolder, tt.batchSize)
 
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -211,7 +356,7 @@ func TestMoveMessages(t *testing.T) {
 			if !mockClient.AssertExpectations(t) {
 				t.Log("Actual calls made:")
 				for _, call := range mockClient.Calls {
-					t.Logf("  %s", call.Method)
+					t.Logf("  %s(%v)", call.Method, call.Arguments)
 				}
 			}
 			mockDialer.AssertExpectations(t)
