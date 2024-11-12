@@ -8,10 +8,10 @@ import (
 type DeletionStrategy int
 
 var DeletedFolderNames = []string{
-	"Deleted Items",
 	"Trash",
-	"Deleted Messages",
 	"[Gmail]/Trash",
+	"Deleted Items",
+	"Deleted Messages",
 }
 
 // DeleteMessages deletes the list of messages based on the account's deletion strategy

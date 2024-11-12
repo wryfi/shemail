@@ -51,14 +51,13 @@ broad support for a number of platforms.
 
 `shemail` uses [Viper](https://github.com/spf13/viper) for configuration management. You can set configuration values via (in order of precedence):
 
-1. Command-line flags
-2. Environment variables
-3. Configuration file (`shemail.json` or `shemail.yaml` in `~/.local/etc` or `/etc`)
+1. Environment variables
+1. Configuration file (`shemail.json` or `shemail.yaml` in `~/.local/etc` or `/etc`)
 
-The application looks for environment variables prefixed with `SHEMAIL_`. For example, to set the log level to `debug`, you can set the environment variable:
+The application looks for environment variables prefixed with `SHEMAIL__`. For example, to set the log level to `debug`, you can set the environment variable:
 
 ```sh
-export SHEMAIL_LOG_LEVEL=debug
+export SHEMAIL__LOG_LEVEL=debug
 ```
 
 You can inspect the current runtime configuration by running `shemail config`.
@@ -93,15 +92,15 @@ timezone: America/Los_Angeles
 
 `name` is the name of the account you can pass on the CLI.
 
-`purge` specified whether `delete` operations should try to move the message to a
+`purge` specifies whether `delete` operations should try to move the message to a
 well-known trash folder, or delete and expunge the messages from your mailbox.
 The default value of `false` moves messages to the first matching trash-like
 folder it finds from:
 
-- Deleted Items
 - Trash
-- Deleted Messages
 - [Gmail]/Trash
+- Deleted Items
+- Deleted Messages
 
 `default` sets the default account that will be used if not specified on the CLI.
 
