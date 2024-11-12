@@ -27,6 +27,10 @@ something goes wrong.
 Implementations that have been tested include dovecot, gmail, and icloud. Note that
 gmail's IMAP implementation is particularly finicky. YMMV.
 
+## Demo
+
+[![asciicast](https://asciinema.org/a/689345.svg)](https://asciinema.org/a/689345)
+
 ## Install
 
 Released binaries for several platforms are available from the [releases](https://github.com/wryfi/shemail/releases) page.
