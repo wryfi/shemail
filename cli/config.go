@@ -21,11 +21,12 @@ type Account struct {
 
 // Config represents the root configuration structure
 type Config struct {
-	Log struct {
+	Accounts []Account `yaml:"accounts"`
+	Log      struct {
 		Level  string `yaml:"level"`
 		Pretty bool   `yaml:"pretty"`
 	} `yaml:"log"`
-	Accounts []Account `yaml:"accounts"`
+	Timezone string `yaml:"timezone"`
 }
 
 // SecretValue is a custom type that obfuscates its value when marshaled to YAML
