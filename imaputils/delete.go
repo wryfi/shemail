@@ -21,6 +21,7 @@ func DeleteMessages(account Account, messages []*imap.Message, folder string) er
 		return nil
 	}
 	if account.Purge {
+		log.Debug().Msgf("will purge messages from this folder")
 		err = purgeMessages(account, folder, messages)
 	} else {
 		err = moveToTrash(account, folder, messages)

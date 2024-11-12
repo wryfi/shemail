@@ -23,12 +23,25 @@ type Account struct {
 	Default  bool
 }
 
+// Create a type that satisfies the io.Writer interface for IMAP debugging
+//type debugWriter struct {
+//	logger zerolog.Logger
+//}
+//
+//func (w *debugWriter) Write(p []byte) (n int, err error) {
+//	w.logger.Debug().Bytes("imap_data", p).Msg("IMAP protocol")
+//	return len(p), nil
+//}
+
 // getImapClient returns an authenticated imap client for account
 func getImapClient(account Account) (*client.Client, error) {
 	var connectionError error
 	var imapClient *client.Client
-
 	serverPort := fmt.Sprintf("%s:%d", account.Server, account.Port)
+
+	//debug := &debugWriter{
+	//	logger: log.With().Str("component", "imap_protocol").Logger(),
+	//}
 
 	if account.TLS {
 		imapClient, connectionError = client.DialTLS(serverPort, nil)
@@ -42,6 +55,8 @@ func getImapClient(account Account) (*client.Client, error) {
 	if err := imapClient.Login(account.User, account.Password); err != nil {
 		return nil, fmt.Errorf("failed to login: %w", err)
 	}
+	//imapClient.SetDebug(debug)
+
 	return imapClient, nil
 }
 
@@ -106,43 +121,11 @@ func sortMessagesByDate(messages []*imap.Message) {
 	})
 }
 
-// createSeqSet creates an optimized sequence set from a slice of messages
+// createSeqSet should work with UIDs, not sequence numbers
 func createSeqSet(messages []*imap.Message) *imap.SeqSet {
-	// Create a new sequence set
 	seqSet := new(imap.SeqSet)
-
-	if len(messages) == 0 {
-		return seqSet
+	for _, msg := range messages {
+		seqSet.AddNum(msg.Uid) // Use UID instead of sequence number
 	}
-
-	// Extract sequence numbers
-	nums := make([]uint32, len(messages))
-	for i, msg := range messages {
-		nums[i] = msg.SeqNum
-	}
-
-	// Sort sequence numbers
-	sort.Slice(nums, func(i, j int) bool {
-		return nums[i] < nums[j]
-	})
-
-	// Build ranges
-	start := nums[0]
-	prev := start
-
-	for i := 1; i < len(nums); i++ {
-		// If there's a gap in sequence numbers
-		if nums[i] != prev+1 {
-			// Add the previous range
-			seqSet.AddRange(start, prev)
-			// Start a new range
-			start = nums[i]
-		}
-		prev = nums[i]
-	}
-
-	// Add the final range
-	seqSet.AddRange(start, prev)
-
 	return seqSet
 }

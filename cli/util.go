@@ -75,7 +75,7 @@ func buildSearchOptions(to, from, subject, startDate, endDate string, seen, unse
 
 	log.Debug().Msgf("Search options built: %s", searchOpts.Serialize())
 
-	return searchOpts
+	return searchOpts, nil
 }
 
 func validateFolderArg(cmd *cobra.Command, args []string) error {
