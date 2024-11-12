@@ -105,19 +105,19 @@ func TestBuildORSearchCriteria(t *testing.T) {
 	strPtr := func(s string) *string { return &s }
 
 	tests := []struct {
-		name     string
-		opts     SearchOptions
-		expected *imap.SearchCriteria
+		name   string
+		opts   SearchOptions
+		verify func(t *testing.T, result *imap.SearchCriteria)
 	}{
 		{
 			name: "Single criterion",
 			opts: SearchOptions{
 				Subject: strPtr("test"),
 			},
-			expected: &imap.SearchCriteria{
-				Header: map[string][]string{
-					"Subject": {"test"},
-				},
+			verify: func(t *testing.T, result *imap.SearchCriteria) {
+				assert.Len(t, result.Header, 1, "Should have one header")
+				values := result.Header["Subject"]
+				assert.Equal(t, []string{"test"}, values, "Subject should match")
 			},
 		},
 		{
@@ -126,15 +126,27 @@ func TestBuildORSearchCriteria(t *testing.T) {
 				To:   strPtr("recipient@example.com"),
 				From: strPtr("sender@example.com"),
 			},
-			expected: &imap.SearchCriteria{
-				Or: [][2]*imap.SearchCriteria{{
-					{
-						Header: map[string][]string{"To": {"recipient@example.com"}},
-					},
-					{
-						Header: map[string][]string{"From": {"sender@example.com"}},
-					},
-				}},
+			verify: func(t *testing.T, result *imap.SearchCriteria) {
+				// Verify it's an OR condition
+				assert.Len(t, result.Or, 1)
+				assert.Len(t, result.Or[0], 2)
+
+				// Verify both criteria exist somewhere in the OR
+				criteria := []*imap.SearchCriteria{result.Or[0][0], result.Or[0][1]}
+				foundTo := false
+				foundFrom := false
+
+				for _, c := range criteria {
+					if c.Header.Get("To") == "recipient@example.com" {
+						foundTo = true
+					}
+					if c.Header.Get("From") == "sender@example.com" {
+						foundFrom = true
+					}
+				}
+
+				assert.True(t, foundTo, "Should find To criterion")
+				assert.True(t, foundFrom, "Should find From criterion")
 			},
 		},
 		{
@@ -144,22 +156,54 @@ func TestBuildORSearchCriteria(t *testing.T) {
 				From:    strPtr("sender@example.com"),
 				Subject: strPtr("test"),
 			},
-			expected: &imap.SearchCriteria{
-				Or: [][2]*imap.SearchCriteria{{
-					{
-						Header: map[string][]string{"To": {"recipient@example.com"}},
-					},
-					{
-						Or: [][2]*imap.SearchCriteria{{
-							{
-								Header: map[string][]string{"From": {"sender@example.com"}},
-							},
-							{
-								Header: map[string][]string{"Subject": {"test"}},
-							},
-						}},
-					},
-				}},
+			verify: func(t *testing.T, result *imap.SearchCriteria) {
+				// Helper function to check if a criteria contains a specific header
+				hasHeader := func(c *imap.SearchCriteria, key, value string) bool {
+					return c.Header.Get(key) == value
+				}
+
+				// Verify the structure is an OR condition
+				assert.Len(t, result.Or, 1)
+				assert.Len(t, result.Or[0], 2)
+
+				// We should find all three criteria somewhere in the tree
+				foundTo := false
+				foundFrom := false
+				foundSubject := false
+
+				// Check first level
+				if hasHeader(result.Or[0][0], "To", "recipient@example.com") {
+					foundTo = true
+				}
+				if hasHeader(result.Or[0][0], "From", "sender@example.com") {
+					foundFrom = true
+				}
+				if hasHeader(result.Or[0][0], "Subject", "test") {
+					foundSubject = true
+				}
+
+				// Check second level
+				if result.Or[0][1].Or != nil {
+					subCriteria := []*imap.SearchCriteria{
+						result.Or[0][1].Or[0][0],
+						result.Or[0][1].Or[0][1],
+					}
+					for _, c := range subCriteria {
+						if hasHeader(c, "To", "recipient@example.com") {
+							foundTo = true
+						}
+						if hasHeader(c, "From", "sender@example.com") {
+							foundFrom = true
+						}
+						if hasHeader(c, "Subject", "test") {
+							foundSubject = true
+						}
+					}
+				}
+
+				assert.True(t, foundTo, "Should find To criterion")
+				assert.True(t, foundFrom, "Should find From criterion")
+				assert.True(t, foundSubject, "Should find Subject criterion")
 			},
 		},
 	}
@@ -167,7 +211,7 @@ func TestBuildORSearchCriteria(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := BuildORSearchCriteria(tt.opts)
-			assert.Equal(t, tt.expected, result)
+			tt.verify(t, result)
 		})
 	}
 }

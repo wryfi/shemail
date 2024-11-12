@@ -38,13 +38,19 @@ func (m *TestIMAPClient) Expunge(ch chan uint32) error {
 	return nil
 }
 
+// TestIMAPClient.Fetch implementation has a bug. Here's how it should be fixed:
 func (m *TestIMAPClient) Fetch(seqset *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error {
 	m.fetchedItems = items
 	if m.shouldError {
 		return errors.New("mock fetch error")
 	}
-	for i := uint32(0); i < m.messages && i < seqset.Set[0].Stop; i++ {
-		ch <- &imap.Message{SeqNum: i + 1}
+
+	// Process each range in the sequence set
+	for _, seq := range seqset.Set {
+		// For each number in the range
+		for i := seq.Start; i <= seq.Stop && i <= m.messages; i++ {
+			ch <- &imap.Message{SeqNum: i}
+		}
 	}
 	close(ch)
 	return nil
