@@ -22,6 +22,7 @@
 go.work
 go.work.sum
 build/
+release/
 
 # env file
 .env
