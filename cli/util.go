@@ -66,9 +66,7 @@ func buildSearchOptions(to, from, subject, startDate, endDate string, seen, unse
 		if err != nil {
 			return imaputils.SearchOptions{}, fmt.Errorf("error parsing end date %s: %w", endDate, err)
 		}
-		// Add one day to consider the entire end date
-		endTime := timeDate.AddDate(0, 0, 1)
-		searchOpts.EndDate = util.TimePtr(endTime)
+		searchOpts.EndDate = util.TimePtr(timeDate)
 	}
 	searchOpts.Seen = util.BoolPtr(seen)
 	searchOpts.Unseen = util.BoolPtr(unseen)
