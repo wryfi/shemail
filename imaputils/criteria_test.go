@@ -57,11 +57,9 @@ func TestBuildSearchCriteria(t *testing.T) {
 				EndDate:   timePtr(time.Date(2024, 1, 31, 0, 0, 0, 0, time.UTC)),
 			},
 			expected: &imap.SearchCriteria{
-				Header:     make(map[string][]string),
-				Since:      time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-				Before:     time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-				SentSince:  time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-				SentBefore: time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
+				Header: make(map[string][]string),
+				Since:  time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				Before: time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
 			},
 		},
 		{
@@ -87,7 +85,6 @@ func TestBuildSearchCriteria(t *testing.T) {
 					"To": {"recipient@example.com"},
 				},
 				Since:     time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-				SentSince: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 				WithFlags: []string{imap.SeenFlag},
 			},
 		},

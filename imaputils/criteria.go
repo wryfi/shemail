@@ -46,18 +46,21 @@ func addHeaderCriteria(criteria *imap.SearchCriteria, opts SearchOptions) {
 	}
 }
 
-// addDateCriteria adds date-related search criteria
+// addDateCriteria adds date-related search criteria. We filter on INTERNALDATE
+// (the server-assigned delivery date) rather than the message's Date header:
+// INTERNALDATE is always present and reliable, whereas the Date header may be
+// missing or malformed, and servers disagree on how to handle those cases. This
+// also keeps the filter consistent with the date column we render, which is
+// likewise derived from InternalDate.
 func addDateCriteria(criteria *imap.SearchCriteria, opts SearchOptions) {
 	if opts.StartDate != nil {
 		criteria.Since = *opts.StartDate
-		criteria.SentSince = *opts.StartDate
 		log.Debug().Msgf("Adding start date criteria: %s", opts.StartDate.String())
 	}
 
 	if opts.EndDate != nil {
 		endDatePlusOne := opts.EndDate.AddDate(0, 0, 1)
 		criteria.Before = endDatePlusOne
-		criteria.SentBefore = endDatePlusOne
 		log.Debug().Msgf("Adding end date criteria: %s", opts.EndDate.String())
 	}
 }
@@ -127,14 +130,14 @@ func buildHeaderCriteria(opts SearchOptions) []*imap.SearchCriteria {
 func buildDateRangeCriteria(opts SearchOptions) []*imap.SearchCriteria {
 	var criteria []*imap.SearchCriteria
 
+	// Filter on INTERNALDATE only; see addDateCriteria for rationale.
+
 	// Handle start and end date together if both are present
 	if opts.StartDate != nil && opts.EndDate != nil {
 		endDatePlusOne := opts.EndDate.AddDate(0, 0, 1)
 		c := &imap.SearchCriteria{
-			Since:      *opts.StartDate,
-			Before:     endDatePlusOne,
-			SentSince:  *opts.StartDate,
-			SentBefore: endDatePlusOne,
+			Since:  *opts.StartDate,
+			Before: endDatePlusOne,
 		}
 		criteria = append(criteria, c)
 		return criteria
@@ -143,8 +146,7 @@ func buildDateRangeCriteria(opts SearchOptions) []*imap.SearchCriteria {
 	// Handle individual dates if only one is present
 	if opts.StartDate != nil {
 		c := &imap.SearchCriteria{
-			Since:     *opts.StartDate,
-			SentSince: *opts.StartDate,
+			Since: *opts.StartDate,
 		}
 		criteria = append(criteria, c)
 	}
@@ -152,8 +154,7 @@ func buildDateRangeCriteria(opts SearchOptions) []*imap.SearchCriteria {
 	if opts.EndDate != nil {
 		endDatePlusOne := opts.EndDate.AddDate(0, 0, 1)
 		c := &imap.SearchCriteria{
-			Before:     endDatePlusOne,
-			SentBefore: endDatePlusOne,
+			Before: endDatePlusOne,
 		}
 		criteria = append(criteria, c)
 	}
