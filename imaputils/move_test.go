@@ -175,6 +175,14 @@ func TestMoveMessages(t *testing.T) {
 				// Select mailbox operations
 				client.On("Select", "INBOX", false).Return(&imap.MailboxStatus{}, nil).Times(4)
 
+				// Hierarchy delimiter discovery (called during EnsureFolder)
+				client.On("List", "", "", mock.Anything).Return(
+					func(ch chan *imap.MailboxInfo) {
+						ch <- &imap.MailboxInfo{Delimiter: "/"}
+					},
+					nil,
+				)
+
 				// Check destination folder exists (called during EnsureFolder)
 				client.On("List", "", "Archive", mock.Anything).Return(
 					func(ch chan *imap.MailboxInfo) {
@@ -376,6 +384,15 @@ func TestEnsureFolder(t *testing.T) {
 			setupMocks: func(client *MockIMAPClientMove, dialer *MockIMAPDialerMove) {
 				dialer.On("Dial", mock.Anything).Return(client, nil)
 				client.On("Login", mock.Anything, mock.Anything).Return(nil)
+
+				// Hierarchy delimiter discovery
+				client.On("List", "", "", mock.Anything).Return(
+					func(ch chan *imap.MailboxInfo) {
+						ch <- &imap.MailboxInfo{Delimiter: "/"}
+					},
+					nil,
+				)
+
 				client.On("List", "", "Archive", mock.Anything).Return(
 					func(ch chan *imap.MailboxInfo) {
 						ch <- &imap.MailboxInfo{Name: "Archive"}
@@ -393,6 +410,14 @@ func TestEnsureFolder(t *testing.T) {
 				dialer.On("Dial", mock.Anything).Return(client, nil)
 				client.On("Login", mock.Anything, mock.Anything).Return(nil)
 
+				// Hierarchy delimiter discovery
+				client.On("List", "", "", mock.Anything).Return(
+					func(ch chan *imap.MailboxInfo) {
+						ch <- &imap.MailboxInfo{Delimiter: "/"}
+					},
+					nil,
+				)
+
 				// Check for full path
 				client.On("List", "", "Parent/Child", mock.Anything).Return(
 					func(ch chan *imap.MailboxInfo) {},
@@ -408,6 +433,38 @@ func TestEnsureFolder(t *testing.T) {
 				// Create parent and child
 				client.On("Create", "Parent").Return(nil)
 				client.On("Create", "Parent/Child").Return(nil)
+
+				client.On("Logout").Return(nil)
+			},
+			expectedError: "",
+		},
+		{
+			name:       "create nested folder with non-slash delimiter",
+			folderName: "Parent/Child",
+			setupMocks: func(client *MockIMAPClientMove, dialer *MockIMAPDialerMove) {
+				dialer.On("Dial", mock.Anything).Return(client, nil)
+				client.On("Login", mock.Anything, mock.Anything).Return(nil)
+
+				// Server reports "." as its hierarchy delimiter
+				client.On("List", "", "", mock.Anything).Return(
+					func(ch chan *imap.MailboxInfo) {
+						ch <- &imap.MailboxInfo{Delimiter: "."}
+					},
+					nil,
+				)
+
+				// The "/"-separated path is translated to the server delimiter
+				client.On("List", "", "Parent.Child", mock.Anything).Return(
+					func(ch chan *imap.MailboxInfo) {},
+					nil,
+				)
+				client.On("List", "", "Parent", mock.Anything).Return(
+					func(ch chan *imap.MailboxInfo) {},
+					nil,
+				)
+
+				client.On("Create", "Parent").Return(nil)
+				client.On("Create", "Parent.Child").Return(nil)
 
 				client.On("Logout").Return(nil)
 			},

@@ -106,6 +106,10 @@ func MoveMessages(dialer IMAPDialer, account Account, messages []*imap.Message, 
 
 // EnsureFolder checks if a folder exists and creates it if it doesn't.
 // It handles nested folders by creating parent folders as needed.
+//
+// Folder paths are specified with "/" as the separator (the shemail
+// convention) and translated to the server's actual hierarchy delimiter, which
+// is not always "/" (Dovecot, for example, commonly uses ".").
 func EnsureFolder(dialer IMAPDialer, account Account, folderName string) error {
 	imapClient, err := getImapClient(dialer, account)
 	if err != nil {
@@ -113,57 +117,36 @@ func EnsureFolder(dialer IMAPDialer, account Account, folderName string) error {
 	}
 	defer imapClient.Logout()
 
-	// List existing folders to check if the destination exists
-	mailboxes := make(chan *imap.MailboxInfo, 10)
-	done := make(chan error, 1)
-
-	go func() {
-		done <- imapClient.List("", folderName, mailboxes)
-	}()
-
-	exists := false
-	for mailbox := range mailboxes {
-		if mailbox.Name == folderName {
-			exists = true
-			break
-		}
+	delimiter, err := getHierarchyDelimiter(imapClient)
+	if err != nil {
+		return fmt.Errorf("failed to determine hierarchy delimiter: %w", err)
+	}
+	if delimiter == "" {
+		delimiter = "/"
 	}
 
-	if err := <-done; err != nil {
+	// Translate the shemail "/"-separated path into the server's delimiter.
+	segments := strings.Split(folderName, "/")
+	serverPath := strings.Join(segments, delimiter)
+
+	exists, err := mailboxExists(imapClient, serverPath)
+	if err != nil {
 		return err
 	}
-
 	if exists {
 		return nil
 	}
 
-	// If folder doesn't exist, create it and any necessary parent folders
-	folders := strings.Split(folderName, "/")
+	// Folder doesn't exist; create it and any necessary parent folders.
 	currentPath := ""
-
-	for i, folder := range folders {
-		if i > 0 {
-			currentPath += "/"
+	for index, segment := range segments {
+		if index > 0 {
+			currentPath += delimiter
 		}
-		currentPath += folder
+		currentPath += segment
 
-		// Check if this level exists
-		mailboxes := make(chan *imap.MailboxInfo, 10)
-		done := make(chan error, 1)
-
-		go func() {
-			done <- imapClient.List("", currentPath, mailboxes)
-		}()
-
-		exists := false
-		for mailbox := range mailboxes {
-			if mailbox.Name == currentPath {
-				exists = true
-				break
-			}
-		}
-
-		if err := <-done; err != nil {
+		exists, err := mailboxExists(imapClient, currentPath)
+		if err != nil {
 			return err
 		}
 
@@ -175,6 +158,52 @@ func EnsureFolder(dialer IMAPDialer, account Account, folderName string) error {
 	}
 
 	return nil
+}
+
+// getHierarchyDelimiter returns the server's mailbox hierarchy delimiter,
+// discovered via a LIST with empty reference and mailbox name (RFC 3501).
+// Returns an empty string if the server reports no delimiter.
+func getHierarchyDelimiter(imapClient IMAPClient) (string, error) {
+	mailboxes := make(chan *imap.MailboxInfo, 1)
+	done := make(chan error, 1)
+
+	go func() {
+		done <- imapClient.List("", "", mailboxes)
+	}()
+
+	delimiter := ""
+	for mailbox := range mailboxes {
+		if mailbox.Delimiter != "" {
+			delimiter = mailbox.Delimiter
+		}
+	}
+
+	if err := <-done; err != nil {
+		return "", err
+	}
+	return delimiter, nil
+}
+
+// mailboxExists reports whether a mailbox with exactly the given name exists.
+func mailboxExists(imapClient IMAPClient, name string) (bool, error) {
+	mailboxes := make(chan *imap.MailboxInfo, 10)
+	done := make(chan error, 1)
+
+	go func() {
+		done <- imapClient.List("", name, mailboxes)
+	}()
+
+	exists := false
+	for mailbox := range mailboxes {
+		if mailbox.Name == name {
+			exists = true
+		}
+	}
+
+	if err := <-done; err != nil {
+		return false, err
+	}
+	return exists, nil
 }
 
 func moveToGmailTrash(dialer IMAPDialer, account Account, folder string, messages []*imap.Message) error {

@@ -137,6 +137,13 @@ func TestDeleteMessages_MoveToTrash(t *testing.T) {
 		close(ch)
 	})
 
+	// EnsureFolder hierarchy delimiter discovery
+	client.On("List", "", "", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+		ch := args.Get(2).(chan *imap.MailboxInfo)
+		ch <- &imap.MailboxInfo{Delimiter: "/"}
+		close(ch)
+	})
+
 	// EnsureFolder verification
 	client.On("List", "", "Deleted Items", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 		ch := args.Get(2).(chan *imap.MailboxInfo)
@@ -181,6 +188,13 @@ func TestDeleteMessages_NoExistingTrashFolder(t *testing.T) {
 		ch := args.Get(2).(chan *imap.MailboxInfo)
 		ch <- &imap.MailboxInfo{Name: "INBOX"}
 		// Don't include Deleted Items
+		close(ch)
+	})
+
+	// EnsureFolder hierarchy delimiter discovery
+	client.On("List", "", "", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+		ch := args.Get(2).(chan *imap.MailboxInfo)
+		ch <- &imap.MailboxInfo{Delimiter: "/"}
 		close(ch)
 	})
 
