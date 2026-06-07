@@ -109,6 +109,10 @@ func SearchFolder() *cobra.Command {
 	cmd.Flags().BoolVarP(&or, "or", "o", false, "OR search criteria instead of AND")
 	cmd.Flags().StringVarP(&moveTo, "move", "m", "", "move messages to <folder>")
 	cmd.Flags().BoolVarP(&deleteFrom, "delete", "d", false, "delete messages")
+	// --read and --unread are contradictory: requiring both Seen and not-Seen
+	// matches nothing. Reject the combination up front instead of silently
+	// returning zero results.
+	cmd.MarkFlagsMutuallyExclusive("read", "unread")
 	return cmd
 }
 
