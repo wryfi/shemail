@@ -9,14 +9,15 @@ import (
 
 // Account represents an email account configuration
 type Account struct {
-	Name     string      `yaml:"name"`
-	User     string      `yaml:"user"`
-	Password SecretValue `yaml:"password"`
-	Server   string      `yaml:"server"`
-	Port     int         `yaml:"port"`
-	TLS      bool        `yaml:"tls"`
-	Default  bool        `yaml:"default"`
-	Purge    bool        `yaml:"purge"`
+	Name            string      `yaml:"name"`
+	User            string      `yaml:"user"`
+	Password        SecretValue `yaml:"password"`
+	PasswordCommand string      `yaml:"password_command,omitempty"`
+	Server          string      `yaml:"server"`
+	Port            int         `yaml:"port"`
+	TLS             bool        `yaml:"tls"`
+	Default         bool        `yaml:"default"`
+	Purge           bool        `yaml:"purge"`
 }
 
 // Config represents the root configuration structure
@@ -44,10 +45,11 @@ func (s SecretValue) MarshalYAML() (interface{}, error) {
 // configuration and writing to stdout for inspection in yaml format.
 func ConfigurationCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:     "config",
-		Short:   "Print shemail configuration",
-		Aliases: []string{"cf", "cfg"},
-		Long:    `Prints all of shemail's known configuration values`,
+		Use:         "config",
+		Short:       "Print shemail configuration",
+		Aliases:     []string{"cf", "cfg"},
+		Long:        `Prints all of shemail's known configuration values`,
+		Annotations: map[string]string{noAuthAnnotation: "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			configFile := viper.ConfigFileUsed()
 			if configFile == "" {

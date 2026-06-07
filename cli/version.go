@@ -7,9 +7,10 @@ import (
 
 func VersionCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "version",
-		Short: "Who am I, Where did I come from?",
-		Long:  `Display version/build information for shemail binary.`,
+		Use:         "version",
+		Short:       "Who am I, Where did I come from?",
+		Long:        `Display version/build information for shemail binary.`,
+		Annotations: map[string]string{noAuthAnnotation: "true"},
 		Run: func(_ *cobra.Command, _ []string) {
 			config.PrintShemailVersion()
 		},

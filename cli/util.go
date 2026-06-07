@@ -6,6 +6,10 @@ import (
 	"github.com/spf13/viper"
 	"github.com/wryfi/shemail/imaputils"
 	"github.com/wryfi/shemail/util"
+	"os"
+	"os/exec"
+	"runtime"
+	"strings"
 )
 
 func getAccount(identifier string) (imaputils.Account, error) {
@@ -29,6 +33,75 @@ func getAccount(identifier string) (imaputils.Account, error) {
 		}
 	}
 	return imaputils.Account{}, fmt.Errorf("account %q not found", identifier)
+}
+
+// resolvePassword determines an account's password using, in order of
+// precedence: the SHEMAIL_<NAME>_PASSWORD environment variable, a literal
+// password from configuration, or the first line of output from the account's
+// password_command.
+func resolvePassword(account imaputils.Account) (string, error) {
+	envVar := passwordEnvVar(account.Name)
+	if value := os.Getenv(envVar); value != "" {
+		log.Debug().Msgf("using password from %s", envVar)
+		return value, nil
+	}
+
+	if account.Password != "" {
+		return account.Password, nil
+	}
+
+	if account.PasswordCommand != "" {
+		log.Debug().Msgf("resolving password via password_command for account %q", account.Name)
+		output, err := shellCommand(account.PasswordCommand).Output()
+		if err != nil {
+			return "", fmt.Errorf("password_command failed for account %q: %w", account.Name, err)
+		}
+		password := firstLine(output)
+		if password == "" {
+			return "", fmt.Errorf("password_command for account %q produced no output", account.Name)
+		}
+		return password, nil
+	}
+
+	return "", fmt.Errorf("no password configured for account %q: set password, password_command, or the %s environment variable", account.Name, envVar)
+}
+
+// shellCommand wraps a password_command in the platform's shell so that pipes,
+// quoting, and the like work as the user expects: cmd.exe on Windows, sh
+// elsewhere.
+func shellCommand(command string) *exec.Cmd {
+	if runtime.GOOS == "windows" {
+		return exec.Command("cmd", "/c", command)
+	}
+	return exec.Command("sh", "-c", command)
+}
+
+// passwordEnvVar returns the per-account password environment variable name,
+// e.g. account "work-mail" -> SHEMAIL_WORK_MAIL_PASSWORD. Characters that are
+// not alphanumeric are replaced with underscores.
+func passwordEnvVar(name string) string {
+	upper := strings.Map(func(letter rune) rune {
+		switch {
+		case letter >= 'a' && letter <= 'z':
+			return letter - ('a' - 'A')
+		case letter >= 'A' && letter <= 'Z', letter >= '0' && letter <= '9':
+			return letter
+		default:
+			return '_'
+		}
+	}, name)
+	return "SHEMAIL_" + upper + "_PASSWORD"
+}
+
+// firstLine returns the first line of output with any trailing carriage return
+// removed, so password_command output works whether or not it has a trailing
+// newline.
+func firstLine(output []byte) string {
+	text := string(output)
+	if index := strings.IndexByte(text, '\n'); index >= 0 {
+		text = text[:index]
+	}
+	return strings.TrimRight(text, "\r")
 }
 
 func parseAccounts() ([]imaputils.Account, error) {

@@ -43,6 +43,7 @@ func SearchFolder() *cobra.Command {
 		read       bool
 		moveTo     string
 		deleteFrom bool
+		purge      bool
 	)
 	cmd := &cobra.Command{
 		Use:     "find <folder>",
@@ -86,7 +87,14 @@ func SearchFolder() *cobra.Command {
 			}
 
 			if deleteFrom {
-				if util.GetConfirmation(fmt.Sprintf("really delete %d messages from %s?", len(messages), args[0])) {
+				// --purge overrides the account setting for this run, expunging
+				// in place instead of moving to a trash folder.
+				account.Purge = account.Purge || purge
+				action := "delete"
+				if account.Purge {
+					action = "permanently delete"
+				}
+				if util.GetConfirmation(fmt.Sprintf("really %s %d messages from %s?", action, len(messages), args[0])) {
 					err := imaputils.DeleteMessages(imaputils.SheDialer, account, messages, args[0])
 					if err != nil {
 						return fmt.Errorf("failed to delete messages from %s: %w", args[0], err)
@@ -109,6 +117,7 @@ func SearchFolder() *cobra.Command {
 	cmd.Flags().BoolVarP(&or, "or", "o", false, "OR search criteria instead of AND")
 	cmd.Flags().StringVarP(&moveTo, "move", "m", "", "move messages to <folder>")
 	cmd.Flags().BoolVarP(&deleteFrom, "delete", "d", false, "delete messages")
+	cmd.Flags().BoolVarP(&purge, "purge", "p", false, "with --delete, permanently expunge messages instead of moving them to trash")
 	// --read and --unread are contradictory: requiring both Seen and not-Seen
 	// matches nothing. Reject the combination up front instead of silently
 	// returning zero results.

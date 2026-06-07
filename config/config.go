@@ -9,7 +9,9 @@ import (
 	"strings"
 )
 
-var cfgFile string
+// CfgFile is an optional explicit path to a configuration file; when set (e.g.
+// via the --config flag) it overrides the default search paths.
+var CfgFile string
 
 // GetHome uses the homedir library to get the user's HOME directory in a
 // cross-platform way.
@@ -40,8 +42,8 @@ func setDefaults() {
 // e.g. SHEMAIL__LOG__LEVEL="debug".
 func InitConfig() {
 	setDefaults()
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
+	if CfgFile != "" {
+		viper.SetConfigFile(CfgFile)
 	} else {
 		viper.SetConfigName("shemail")
 		localconf := filepath.Join(GetHome(), ".local", "etc")

@@ -15,11 +15,14 @@ type Account struct {
 	Name     string // identifier for the account
 	User     string
 	Password string
-	Server   string
-	Port     int
-	TLS      bool
-	Purge    bool
-	Default  bool
+	// PasswordCommand, if set, is run to obtain the password when no literal
+	// password (or environment override) is configured.
+	PasswordCommand string `mapstructure:"password_command"`
+	Server          string
+	Port            int
+	TLS             bool
+	Purge           bool
+	Default         bool
 }
 
 // IMAPClient defines the minimal interface for IMAP client operations

@@ -118,9 +118,40 @@ log:
 timezone: America/Los_Angeles
 ```
 
-> **Security:** the configuration file stores your password in cleartext (the
-> `shemail config` command masks it on display, but the file itself does not).
-> Restrict its permissions accordingly, e.g. `chmod 600 ~/.local/etc/shemail.yaml`.
+> **Security:** a literal `password` is stored in cleartext (the `shemail config`
+> command masks it on display, but the file itself does not). Restrict the file's
+> permissions accordingly, e.g. `chmod 600 ~/.local/etc/shemail.yaml` — or avoid
+> storing it at all with `password_command` or an environment variable (see
+> [Passwords](#passwords) below).
+
+### Passwords
+
+shemail resolves each account's password from the first of these that is set:
+
+1. the `SHEMAIL_<NAME>_PASSWORD` environment variable, where `<NAME>` is the
+   account name upper-cased with non-alphanumeric characters replaced by
+   underscores (e.g. account `work-mail` → `SHEMAIL_WORK_MAIL_PASSWORD`);
+2. the literal `password` field in the configuration file;
+3. the output of `password_command` — a shell command (run via `sh -c`) whose
+   first line of standard output is used as the password.
+
+`password_command` lets you keep the secret in your password manager instead of
+on disk:
+
+```yaml
+accounts:
+  - name: work
+    user: me@work.com
+    password_command: "pass show email/work"
+    server: imap.work.com
+    port: 993
+    tls: true
+    default: true
+```
+
+Other examples: `op read "op://Private/work email/password"` (1Password CLI),
+`secret-tool lookup service shemail account work` (libsecret), or
+`security find-generic-password -a me@work.com -s shemail -w` (macOS Keychain).
 
 `name` is the name of the account you can pass on the CLI.
 
@@ -193,10 +224,17 @@ shemail find INBOX --from boring@newsletter.com --before 2023-01-01 --move Archi
 
 # delete all read messages whose subject matches "sale"
 shemail find INBOX --subject "sale" --read --delete
+
+# permanently expunge everything in the trash, bypassing the trash folder
+shemail find "[Gmail]/Trash" --delete --purge
 ```
 
 A few notes:
 
+- `--delete` moves messages to a trash folder by default. Add `--purge` (or set
+  `purge: true` on the account) to permanently expunge them in place instead —
+  useful for emptying trash. The confirmation prompt says "permanently delete"
+  when purging.
 - `--read`/`--unread` and `--move`/`--delete` are each mutually exclusive.
 - By default `find` combines criteria with AND; pass `--or` to match any criterion.
 - Use `-A <account>` to target an account other than the default.
