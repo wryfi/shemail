@@ -95,12 +95,20 @@ func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
 	table.SetCaption(true, fmt.Sprintf("Found %d messages", len(messages)))
 
 	for _, message := range messages {
+		msgDate := NewMessageDate(message.InternalDate)
+		date := msgDate.FormatConsistent(tz)
+
+		// A message may arrive without an envelope (malformed message or a
+		// partial fetch); fall back to placeholders rather than panicking.
+		if message.Envelope == nil {
+			table.Append([]string{date, "(unknown)", "(unknown)", "(unknown)"})
+			continue
+		}
+
 		subject := "(unknown)"
 		if message.Envelope.Subject != "" {
 			subject = TruncateString(message.Envelope.Subject, 60)
 		}
-		msgDate := NewMessageDate(message.InternalDate)
-		date := msgDate.FormatConsistent(tz)
 		from := TruncateString(imaputils.FormatAddressesCSV(message.Envelope.From), 30)
 		to := imaputils.FormatAddressesCSV(message.Envelope.To)
 		table.Append([]string{date, from, to, subject})

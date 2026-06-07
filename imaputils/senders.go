@@ -49,7 +49,7 @@ func CountMessagesBySender(dialer IMAPDialer, account Account, folder string, th
 		go func() {
 			defer wg.Done()
 			for msg := range messageChan {
-				if len(msg.Envelope.From) == 0 {
+				if msg.Envelope == nil || len(msg.Envelope.From) == 0 {
 					continue
 				}
 
