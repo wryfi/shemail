@@ -1,6 +1,8 @@
 # shemail
 
-`shemail` is a command-line IMAP email client designed to help you quickly organize your mailboxes.
+[![ci](https://github.com/wryfi/shemail/actions/workflows/ci.yml/badge.svg)](https://github.com/wryfi/shemail/actions/workflows/ci.yml)
+
+`shemail` (shell email) is a command-line IMAP email client designed to help you quickly organize your mailboxes.
 
 ## Features
 
@@ -15,17 +17,22 @@ garbage from your inbox.
 
 **USE AT YOUR OWN RISK!**
 
-While attempts have been made at creating a robust and predictable tool, there are 
+While attempts have been made at creating a robust and predictable tool, there are
 _many_ more IMAP implementations in the wild than can be reasonably tested.
 IMAP is an old and crufty standard and everyone does it a little differently.
 There is no guarantee that this tool won't eat your homework.
 
-Consider testing against a dummy account with your provider before unleashing 
+Consider testing against a dummy account with your provider before unleashing
 on your precious mail, and have back-ups of your mailbox available in case
 something goes wrong.
 
 Implementations that have been tested include dovecot, gmail, and icloud. Note that
 gmail's IMAP implementation is particularly finicky. YMMV.
+
+> **Gmail and iCloud require an app-specific password** for IMAP — your normal
+> account password will not work (and Gmail no longer supports "less secure
+> apps"). Generate an app password in your provider's account/security settings
+> and use that as the `password` in your configuration.
 
 ## Demo
 
@@ -35,21 +42,35 @@ gmail's IMAP implementation is particularly finicky. YMMV.
 
 Released binaries for several platforms are available from the [releases](https://github.com/wryfi/shemail/releases) page.
 
+Alternatively, if you have a Go toolchain installed, you can install the latest
+release directly:
+
+```sh
+go install github.com/wryfi/shemail@latest
+```
+
 ## Build from Source
 
 If there is no binary for your platform, you can try building from source. Go has
 broad support for a number of platforms.
 
 1. Clone the repository:
+
    ```sh
    git clone https://github.com/wryfi/shemail.git
    cd shemail
    ```
 
 2. Build the project:
+
    ```sh
    go build -o shemail
    ```
+
+   > Note: a plain `go build` leaves the `version` command's output blank. To
+   > embed version, commit, and build-date metadata, build with
+   > [`just`](https://github.com/casey/just) instead — `just build` (writes to
+   > `build/`) or `just install` (installs to `~/.local/bin`).
 
 ## Configuration
 
@@ -58,10 +79,13 @@ broad support for a number of platforms.
 1. Environment variables
 1. Configuration file (`shemail.json` or `shemail.yaml` in `~/.local/etc` or `/etc`)
 
-The application looks for environment variables prefixed with `SHEMAIL__`. For example, to set the log level to `debug`, you can set the environment variable:
+The application looks for environment variables prefixed with `SHEMAIL__`, where
+dots in a configuration key become double underscores. For example, `timezone`
+maps to `SHEMAIL__TIMEZONE` and `log.level` maps to `SHEMAIL__LOG__LEVEL`. To set
+the log level to `debug`:
 
 ```sh
-export SHEMAIL__LOG_LEVEL=debug
+export SHEMAIL__LOG__LEVEL=debug
 ```
 
 You can inspect the current runtime configuration by running `shemail config`.
@@ -69,23 +93,23 @@ A typical yaml configuration looks something like this:
 
 ```yaml
 accounts:
-    - name: unbox
-      user: unbox@my.domain.com
-      password: '********'
-      server: imap.foo.com
-      port: 993
-      tls: true
-      default: true
-      purge: false
-      
-    - name: localhost
-      user: foobar@localhost
-      password: '********'
-      server: localhost
-      port: 143
-      tls: false
-      default: false
-      purge: false
+  - name: unbox
+    user: unbox@my.domain.com
+    password: "********"
+    server: imap.foo.com
+    port: 993
+    tls: true
+    default: true
+    purge: false
+
+  - name: localhost
+    user: foobar@localhost
+    password: "********"
+    server: localhost
+    port: 143
+    tls: false
+    default: false
+    purge: false
 
 log:
   level: warn
@@ -93,6 +117,10 @@ log:
 
 timezone: America/Los_Angeles
 ```
+
+> **Security:** the configuration file stores your password in cleartext (the
+> `shemail config` command masks it on display, but the file itself does not).
+> Restrict its permissions accordingly, e.g. `chmod 600 ~/.local/etc/shemail.yaml`.
 
 `name` is the name of the account you can pass on the CLI.
 
@@ -138,6 +166,42 @@ Flags:
 Use "shemail [command] --help" for more information about a command.
 ```
 
+## Examples
+
+See who is filling up your inbox (senders with at least 25 messages):
+
+```sh
+shemail senders INBOX -t 25
+```
+
+Search a folder by sender, subject, date range, or read state:
+
+```sh
+shemail find INBOX --from noreply@spam.com
+shemail find INBOX --subject "newsletter" --unread
+shemail find INBOX --after 2022-01-01 --before 2023-01-01
+```
+
+Dates use `YYYY-MM-DD` format and filter on the message's delivery date.
+
+Combine search criteria with `--move` or `--delete` to act on the matches. You
+are shown the matching messages and asked to confirm before anything happens:
+
+```sh
+# move everything from a sender, sent before a date, into an Archive folder
+shemail find INBOX --from boring@newsletter.com --before 2023-01-01 --move Archive
+
+# delete all read messages whose subject matches "sale"
+shemail find INBOX --subject "sale" --read --delete
+```
+
+A few notes:
+
+- `--read`/`--unread` and `--move`/`--delete` are each mutually exclusive.
+- By default `find` combines criteria with AND; pass `--or` to match any criterion.
+- Use `-A <account>` to target an account other than the default.
+- The destination folder for `--move` is created automatically if it doesn't exist.
+
 ## Development
 
 To contribute to the development of `shemail`, fork the repository and send a pull request.
@@ -145,3 +209,4 @@ To contribute to the development of `shemail`, fork the repository and send a pu
 ## License
 
 This project is licensed under the BSD 3-Clause License.
+
