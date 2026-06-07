@@ -199,6 +199,9 @@ func TestSearchOptions_Serialize(t *testing.T) {
   "EndDate": "` + now.Format(time.RFC3339Nano) + `",
   "Seen": true,
   "Unseen": false,
+  "NotTo": null,
+  "NotFrom": null,
+  "NotSubject": null,
   "LargerThan": null,
   "SmallerThan": null
 }`,
@@ -214,6 +217,9 @@ func TestSearchOptions_Serialize(t *testing.T) {
   "EndDate": null,
   "Seen": null,
   "Unseen": null,
+  "NotTo": null,
+  "NotFrom": null,
+  "NotSubject": null,
   "LargerThan": null,
   "SmallerThan": null
 }`,

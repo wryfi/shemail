@@ -12,6 +12,9 @@ type SearchOptions struct {
 	To          *string    // Optional To address
 	From        *string    // Optional From address
 	Subject     *string    // Optional Subject
+	NotTo       *string    // Optional negated To address (must NOT match)
+	NotFrom     *string    // Optional negated From address (must NOT match)
+	NotSubject  *string    // Optional negated Subject (must NOT match)
 	StartDate   *time.Time // Optional start date
 	EndDate     *time.Time // Optional end date
 	Seen        *bool      // Optional seen flag

@@ -10,6 +10,7 @@ func BuildSearchCriteria(opts SearchOptions) *imap.SearchCriteria {
 	criteria := initializeCriteria()
 
 	addHeaderCriteria(criteria, opts)
+	addNegatedHeaderCriteria(criteria, opts)
 	addDateCriteria(criteria, opts)
 	addFlagCriteria(criteria, opts)
 	addSizeCriteria(criteria, opts)
@@ -43,6 +44,29 @@ func addHeaderCriteria(criteria *imap.SearchCriteria, opts SearchOptions) {
 		if value != nil {
 			criteria.Header[field] = []string{*value}
 			log.Debug().Msgf("Adding %s criterion: %s", field, *value)
+		}
+	}
+}
+
+// negatedHeaderFields returns the set negated header criteria from opts as a
+// field->value map, so the AND and OR builders can share the mapping.
+func negatedHeaderFields(opts SearchOptions) map[string]*string {
+	return map[string]*string{
+		"To":      opts.NotTo,
+		"From":    opts.NotFrom,
+		"Subject": opts.NotSubject,
+	}
+}
+
+// addNegatedHeaderCriteria adds To, From, and Subject negations. Each becomes an
+// entry in criteria.Not, which IMAP evaluates as NOT(match) and ANDs together.
+func addNegatedHeaderCriteria(criteria *imap.SearchCriteria, opts SearchOptions) {
+	for field, value := range negatedHeaderFields(opts) {
+		if value != nil {
+			criteria.Not = append(criteria.Not, &imap.SearchCriteria{
+				Header: map[string][]string{field: {*value}},
+			})
+			log.Debug().Msgf("Adding NOT %s criterion: %s", field, *value)
 		}
 	}
 }
@@ -111,6 +135,7 @@ func buildIndividualCriteria(opts SearchOptions) []*imap.SearchCriteria {
 	var criteriaList []*imap.SearchCriteria
 
 	criteriaList = append(criteriaList, buildHeaderCriteria(opts)...)
+	criteriaList = append(criteriaList, buildNegatedHeaderCriteria(opts)...)
 	criteriaList = append(criteriaList, buildDateRangeCriteria(opts)...)
 	criteriaList = append(criteriaList, buildFlagCriteria(opts)...)
 	criteriaList = append(criteriaList, buildSizeCriteria(opts)...)
@@ -136,6 +161,24 @@ func buildHeaderCriteria(opts SearchOptions) []*imap.SearchCriteria {
 				},
 			}
 			criteria = append(criteria, c)
+		}
+	}
+
+	return criteria
+}
+
+// buildNegatedHeaderCriteria creates individual negated header criteria, each
+// wrapped so it stands alone as an OR branch.
+func buildNegatedHeaderCriteria(opts SearchOptions) []*imap.SearchCriteria {
+	var criteria []*imap.SearchCriteria
+
+	for field, value := range negatedHeaderFields(opts) {
+		if value != nil {
+			criteria = append(criteria, &imap.SearchCriteria{
+				Not: []*imap.SearchCriteria{
+					{Header: map[string][]string{field: {*value}}},
+				},
+			})
 		}
 	}
 

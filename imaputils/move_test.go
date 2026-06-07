@@ -404,6 +404,17 @@ func TestEnsureFolder(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name:       "inbox is reserved and never created",
+			folderName: "inbox",
+			setupMocks: func(client *MockIMAPClientMove, dialer *MockIMAPDialerMove) {
+				dialer.On("Dial", mock.Anything).Return(client, nil)
+				client.On("Login", mock.Anything, mock.Anything).Return(nil)
+				// No List or Create expected: INBOX short-circuits.
+				client.On("Logout").Return(nil)
+			},
+			expectedError: "",
+		},
+		{
 			name:       "create nested folder",
 			folderName: "Parent/Child",
 			setupMocks: func(client *MockIMAPClientMove, dialer *MockIMAPDialerMove) {

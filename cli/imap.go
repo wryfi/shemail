@@ -39,6 +39,9 @@ func SearchFolder() *cobra.Command {
 		startDate   string
 		subject     string
 		to          string
+		notFrom     string
+		notSubject  string
+		notTo       string
 		unread      bool
 		read        bool
 		moveTo      string
@@ -54,7 +57,7 @@ func SearchFolder() *cobra.Command {
 		Args:    validateFolderArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imaputils.Account)
-			searchOpts, err := buildSearchOptions(to, from, subject, startDate, endDate, largerThan, smallerThan, read, unread)
+			searchOpts, err := buildSearchOptions(to, from, subject, notTo, notFrom, notSubject, startDate, endDate, largerThan, smallerThan, read, unread)
 			if err != nil {
 				return fmt.Errorf("error building search options: %v", err)
 			}
@@ -112,6 +115,9 @@ func SearchFolder() *cobra.Command {
 	cmd.Flags().StringVarP(&to, "to", "t", "", "find messages to this address")
 	cmd.Flags().StringVarP(&from, "from", "f", "", "find messages from this address")
 	cmd.Flags().StringVarP(&subject, "subject", "s", "", "match subject")
+	cmd.Flags().StringVar(&notTo, "not-to", "", "exclude messages to this address")
+	cmd.Flags().StringVar(&notFrom, "not-from", "", "exclude messages from this address")
+	cmd.Flags().StringVar(&notSubject, "not-subject", "", "exclude messages whose subject matches")
 	cmd.Flags().StringVarP(&startDate, "after", "a", "", "find messages received after date (format: `2006-01-02`)")
 	cmd.Flags().StringVarP(&endDate, "before", "b", "", "find messages received before date (format: `2006-01-02`)")
 	cmd.Flags().StringVar(&largerThan, "larger-than", "", "find messages larger than this size (e.g. 500K, 10M)")

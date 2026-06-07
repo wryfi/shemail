@@ -121,6 +121,14 @@ func EnsureFolder(dialer IMAPDialer, account Account, folderName string) error {
 	}
 	defer imapClient.Logout()
 
+	// INBOX is a reserved, case-insensitive mailbox that always exists. Some
+	// servers (e.g. Dovecot) error with "Mailbox already exists" if you try to
+	// create it, and an exact-name existence check misses it when the user
+	// types a different case (e.g. "inbox"), so handle it explicitly.
+	if strings.EqualFold(folderName, "INBOX") {
+		return nil
+	}
+
 	delimiter, err := getHierarchyDelimiter(imapClient)
 	if err != nil {
 		return fmt.Errorf("failed to determine hierarchy delimiter: %w", err)

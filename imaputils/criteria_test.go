@@ -79,6 +79,21 @@ func TestBuildSearchCriteria(t *testing.T) {
 			},
 		},
 		{
+			name: "Negated header criteria",
+			opts: SearchOptions{
+				From:       strPtr("company@example.com"),
+				NotSubject: strPtr("order"),
+			},
+			expected: &imap.SearchCriteria{
+				Header: map[string][]string{
+					"From": {"company@example.com"},
+				},
+				Not: []*imap.SearchCriteria{
+					{Header: map[string][]string{"Subject": {"order"}}},
+				},
+			},
+		},
+		{
 			name: "Size criteria only",
 			opts: SearchOptions{
 				LargerThan:  uint32Ptr(10 * 1024 * 1024),
