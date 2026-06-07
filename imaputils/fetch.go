@@ -14,7 +14,6 @@ type MessageFields struct {
 	BodyPeek  bool     // Whether to mark messages as read when fetching
 	Structure bool     // Message structure/MIME parts
 	Size      bool     // Message size
-	UID       bool     // Message UID
 	All       bool     // Fetch all fields (overrides other options)
 }
 
@@ -87,7 +86,10 @@ func buildFetchItems(fields MessageFields) []imap.FetchItem {
 		return []imap.FetchItem{imap.FetchAll}
 	}
 
-	items := make([]imap.FetchItem, 0)
+	// Always fetch the UID. It is small, and it is the only stable handle for
+	// acting on a message (move/delete operate by UID). Without it, messages
+	// returned from here carry Uid == 0 and silently cannot be operated on.
+	items := []imap.FetchItem{imap.FetchUid}
 
 	if fields.Envelope {
 		items = append(items, imap.FetchEnvelope)
@@ -99,10 +101,6 @@ func buildFetchItems(fields MessageFields) []imap.FetchItem {
 
 	if fields.Size {
 		items = append(items, imap.FetchRFC822Size)
-	}
-
-	if fields.UID {
-		items = append(items, imap.FetchUid)
 	}
 
 	if fields.Structure {

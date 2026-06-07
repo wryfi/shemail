@@ -285,8 +285,8 @@ func TestBuildFetchItems(t *testing.T) {
 				Envelope: true,
 				Flags:    true,
 				Size:     true,
-				UID:      true,
 			},
+			// UID is always requested, so Envelope+Flags+Size yields 4 items.
 			expectedCount: 4,
 			checkForItems: []imap.FetchItem{
 				imap.FetchEnvelope,
@@ -300,7 +300,9 @@ func TestBuildFetchItems(t *testing.T) {
 			fields: MessageFields{
 				Headers: []string{"Subject", "From"},
 			},
-			expectedCount: 1,
+			// UID (always requested) plus the header section.
+			expectedCount: 2,
+			checkForItems: []imap.FetchItem{imap.FetchUid},
 		},
 	}
 
