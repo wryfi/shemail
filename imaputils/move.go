@@ -80,25 +80,26 @@ func MoveMessages(dialer IMAPDialer, account Account, messages []*imap.Message, 
 	}
 	defer verifyClient.Logout()
 
-	for _, msg := range messages {
-		seqSet := new(imap.SeqSet)
-		seqSet.AddNum(msg.Uid)
+	// Confirm none of the moved messages remain in the source folder. A single
+	// fetch over the whole UID set replaces what used to be one round-trip per
+	// message; any UID that still comes back failed to move.
+	seqSet := createSeqSet(messages)
+	fetch := make(chan *imap.Message, len(messages))
+	done := make(chan error, 1)
 
-		fetch := make(chan *imap.Message, 1)
-		done := make(chan error, 1)
+	go func() {
+		done <- verifyClient.UidFetch(seqSet, []imap.FetchItem{imap.FetchUid}, fetch)
+	}()
 
-		go func() {
-			done <- verifyClient.UidFetch(seqSet, []imap.FetchItem{imap.FetchUid}, fetch)
-		}()
+	var stillPresent []uint32
+	for msg := range fetch {
+		stillPresent = append(stillPresent, msg.Uid)
+	}
 
-		messageFound := false
-		for range fetch {
-			messageFound = true
-		}
-
-		if err := <-done; err == nil && messageFound {
-			return fmt.Errorf("message UID %d still found in source folder after move", msg.Uid)
-		}
+	// As before, only treat this as a failure when the fetch itself succeeded;
+	// a verification fetch error is not taken as proof the move failed.
+	if err := <-done; err == nil && len(stillPresent) > 0 {
+		return fmt.Errorf("%d message(s) still found in source folder after move (e.g. UID %d)", len(stillPresent), stillPresent[0])
 	}
 
 	return nil

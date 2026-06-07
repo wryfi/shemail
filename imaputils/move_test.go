@@ -196,13 +196,13 @@ func TestMoveMessages(t *testing.T) {
 					return true // Add more specific validation if needed
 				}), "Archive").Return(nil).Times(2)
 
-				// Verification operations for each message
+				// Verification is now a single batched fetch over all UIDs
 				client.On("UidFetch", mock.MatchedBy(func(seqSet *imap.SeqSet) bool {
 					return true // Add more specific validation if needed
 				}), []imap.FetchItem{imap.FetchUid}, mock.Anything).Return(
 					func(ch chan *imap.Message) {},
 					nil,
-				).Times(2)
+				).Once()
 
 				// Logout for each connection
 				client.On("Logout").Return(nil).Times(5)
