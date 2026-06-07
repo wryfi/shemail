@@ -5,7 +5,6 @@ import (
 	"github.com/emersion/go-imap"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -31,13 +30,6 @@ func CountMessagesBySender(dialer IMAPDialer, account Account, folder string, th
 	// Pre-allocate map with estimated capacity
 	senderCounts := make(map[string]int, len(messages)/2) // Assuming average of 2 messages per sender
 
-	// Use a sync.Pool for string builders to reduce allocations
-	pool := sync.Pool{
-		New: func() interface{} {
-			return &strings.Builder{}
-		},
-	}
-
 	// Process messages in parallel using worker pool
 	const numWorkers = 4
 	messageChan := make(chan *imap.Message, numWorkers)
@@ -53,10 +45,7 @@ func CountMessagesBySender(dialer IMAPDialer, account Account, folder string, th
 					continue
 				}
 
-				sb := pool.Get().(*strings.Builder)
-				sb.Reset()
-				sender := FormatAddress(msg.Envelope.From[0]) // <-- Capture the return value
-				pool.Put(sb)
+				sender := FormatAddress(msg.Envelope.From[0])
 
 				if sender != "" {
 					mu.Lock()
