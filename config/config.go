@@ -16,7 +16,10 @@ var cfgFile string
 func GetHome() string {
 	home, err := homedir.Dir()
 	if err != nil {
-		log.Fatal().Err(err)
+		// The terminating .Msg() is required: without it the event is never
+		// dispatched, so Fatal neither logs nor exits and we would fall
+		// through returning an empty home directory.
+		log.Fatal().Err(err).Msg("failed to determine home directory")
 	}
 	return home
 }
