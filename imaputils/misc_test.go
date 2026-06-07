@@ -19,6 +19,27 @@ func TestFormatAddress(t *testing.T) {
 	}
 }
 
+func TestFormatAddressEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		address  *imap.Address
+		expected string
+	}{
+		{"nil address", nil, ""},
+		{"empty address", &imap.Address{}, ""},
+		{"mailbox only", &imap.Address{MailboxName: "mailbox"}, "mailbox"},
+		{"host only", &imap.Address{HostName: "example.com"}, "example.com"},
+		{"full", &imap.Address{MailboxName: "mailbox", HostName: "example.com"}, "mailbox@example.com"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if result := FormatAddress(test.address); result != test.expected {
+				t.Errorf("Expected %q, but got %q", test.expected, result)
+			}
+		})
+	}
+}
+
 func TestFormatAddresses(t *testing.T) {
 	addresses := []*imap.Address{
 		{MailboxName: "mailbox1", HostName: "example.com"},

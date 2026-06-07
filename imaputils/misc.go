@@ -7,23 +7,24 @@ import (
 	"strings"
 )
 
-// FormatAddress formats an IMAP address into a human-readable string.
+// FormatAddress formats an IMAP address into a human-readable string. It
+// returns an empty string when the address has neither a mailbox nor a host,
+// so callers can distinguish "no usable address" from a real one (rather than
+// getting a bare "@").
 func FormatAddress(address *imap.Address) string {
-	//var name, mailbox, host string
-	var mailbox, host string
-	//if address.PersonalName != "" {
-	//	name = address.PersonalName
-	//}
-
-	if address.MailboxName != "" && address.HostName != "" {
-		mailbox = address.MailboxName
-		host = address.HostName
+	if address == nil {
+		return ""
 	}
-
-	//if name != "" {
-	//	return fmt.Sprintf("%s <%s@%s>", name, mailbox, host)
-	//}
-	return fmt.Sprintf("%s@%s", mailbox, host)
+	switch {
+	case address.MailboxName == "" && address.HostName == "":
+		return ""
+	case address.HostName == "":
+		return address.MailboxName
+	case address.MailboxName == "":
+		return address.HostName
+	default:
+		return fmt.Sprintf("%s@%s", address.MailboxName, address.HostName)
+	}
 }
 
 // FormatAddresses formats a slice of IMAP addresses into a comma-separated string.

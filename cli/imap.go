@@ -113,6 +113,10 @@ func SearchFolder() *cobra.Command {
 	// matches nothing. Reject the combination up front instead of silently
 	// returning zero results.
 	cmd.MarkFlagsMutuallyExclusive("read", "unread")
+	// --move and --delete together would move the messages out of the source
+	// folder and then try to delete those same UIDs from a folder they no
+	// longer live in. Reject the combination rather than fail mid-operation.
+	cmd.MarkFlagsMutuallyExclusive("move", "delete")
 	return cmd
 }
 

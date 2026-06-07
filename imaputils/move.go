@@ -10,21 +10,24 @@ import (
 // MoveMessages moves a slice of messages to the specified destination folder.
 // It uses concurrent operations to optimize performance for large message sets.
 func MoveMessages(dialer IMAPDialer, account Account, messages []*imap.Message, sourceFolder, destFolder string, batchSize int) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
 	// Special case for Gmail trash
 	if strings.Contains(account.Server, "gmail.com") && destFolder == "[Gmail]/Trash" {
 		return moveToGmailTrash(dialer, account, sourceFolder, messages)
 	}
 
-	// Just used for initial checks
-	imapClient, err := connectToMailbox(dialer, account, sourceFolder, false)
+	// Validate connectivity and that the source folder is selectable before we
+	// mutate anything (EnsureFolder below creates the destination). This fails
+	// fast on bad credentials or a missing source folder, so we don't leave a
+	// stray destination folder behind on an otherwise-doomed move.
+	precheckClient, err := connectToMailbox(dialer, account, sourceFolder, false)
 	if err != nil {
 		return fmt.Errorf("failed to connect to server: %w", err)
 	}
-	defer imapClient.Logout()
-
-	for _, message := range messages {
-		log.Debug().Msgf("%d", message.Uid)
-	}
+	defer precheckClient.Logout()
 
 	// Ensure destination folder exists
 	if err := EnsureFolder(dialer, account, destFolder); err != nil {
