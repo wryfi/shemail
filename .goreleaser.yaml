@@ -1,0 +1,52 @@
+version: 2
+
+project_name: shemail
+
+before:
+  hooks:
+    # Fetch deps without mutating go.mod/go.sum during a release.
+    - go mod download
+
+builds:
+  - id: shemail
+    main: .
+    binary: shemail
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+      - freebsd
+      - openbsd
+    goarch:
+      - amd64
+      - arm64
+    # Mirror the ldflags from the justfile so `version` output is populated.
+    ldflags:
+      - -s -w
+      - -X github.com/wryfi/shemail/config.ShemailVersion={{ .Version }}
+      - -X github.com/wryfi/shemail/config.GitRevision={{ .ShortCommit }}
+      - -X github.com/wryfi/shemail/config.BuildDate={{ .Date }}
+
+archives:
+  - id: shemail
+    formats:
+      - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "sha256sums_{{ .Version }}.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  draft: false
+  prerelease: auto
