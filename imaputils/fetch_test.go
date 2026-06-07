@@ -256,10 +256,6 @@ func TestDefaultMessageFields(t *testing.T) {
 		t.Error("Expected Envelope to be true in default fields")
 	}
 
-	if !fields.BodyPeek {
-		t.Error("Expected BodyPeek to be true in default fields")
-	}
-
 	expectedHeaders := []string{"From", "Subject", "Date"}
 	if !reflect.DeepEqual(fields.Headers, expectedHeaders) {
 		t.Errorf("Expected headers %v, got %v", expectedHeaders, fields.Headers)

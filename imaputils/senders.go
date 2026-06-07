@@ -21,7 +21,6 @@ func CountMessagesBySender(dialer IMAPDialer, account Account, folder string, th
 	fields := MessageFields{
 		Envelope: true,
 		Headers:  []string{"From"},
-		BodyPeek: true,
 	}
 
 	messages, err := FetchMessages(dialer, account, folder, fields)

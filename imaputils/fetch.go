@@ -5,13 +5,14 @@ import (
 	"github.com/emersion/go-imap"
 )
 
-// MessageFields represents the fields to fetch from IMAP messages
+// MessageFields represents the fields to fetch from IMAP messages. Body and
+// header content is always fetched with BODY.PEEK so that scanning a mailbox
+// never marks messages as read as a side effect.
 type MessageFields struct {
 	Envelope  bool
 	Body      bool
 	Flags     bool
 	Headers   []string // Specific headers to fetch
-	BodyPeek  bool     // Whether to mark messages as read when fetching
 	Structure bool     // Message structure/MIME parts
 	Size      bool     // Message size
 	All       bool     // Fetch all fields (overrides other options)
@@ -22,7 +23,6 @@ func DefaultMessageFields() MessageFields {
 	return MessageFields{
 		Envelope: true,
 		Headers:  []string{"From", "Subject", "Date"},
-		BodyPeek: true,
 	}
 }
 
@@ -113,12 +113,13 @@ func buildFetchItems(fields MessageFields) []imap.FetchItem {
 				Specifier: "HEADER.FIELDS",
 				Fields:    fields.Headers,
 			},
+			Peek: true,
 		}
 		items = append(items, section.FetchItem())
 	}
 
 	if fields.Body {
-		bodySection := &imap.BodySectionName{}
+		bodySection := &imap.BodySectionName{Peek: true}
 		items = append(items, bodySection.FetchItem())
 	}
 
