@@ -33,17 +33,19 @@ func ListFolders() *cobra.Command {
 // SearchFolder generates a command to search a folder for messages based on various criteria
 func SearchFolder() *cobra.Command {
 	var (
-		endDate    string
-		from       string
-		or         bool
-		startDate  string
-		subject    string
-		to         string
-		unread     bool
-		read       bool
-		moveTo     string
-		deleteFrom bool
-		purge      bool
+		endDate     string
+		from        string
+		or          bool
+		startDate   string
+		subject     string
+		to          string
+		unread      bool
+		read        bool
+		moveTo      string
+		deleteFrom  bool
+		purge       bool
+		largerThan  string
+		smallerThan string
 	)
 	cmd := &cobra.Command{
 		Use:     "find <folder>",
@@ -52,7 +54,7 @@ func SearchFolder() *cobra.Command {
 		Args:    validateFolderArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imaputils.Account)
-			searchOpts, err := buildSearchOptions(to, from, subject, startDate, endDate, read, unread)
+			searchOpts, err := buildSearchOptions(to, from, subject, startDate, endDate, largerThan, smallerThan, read, unread)
 			if err != nil {
 				return fmt.Errorf("error building search options: %v", err)
 			}
@@ -112,6 +114,8 @@ func SearchFolder() *cobra.Command {
 	cmd.Flags().StringVarP(&subject, "subject", "s", "", "match subject")
 	cmd.Flags().StringVarP(&startDate, "after", "a", "", "find messages received after date (format: `2006-01-02`)")
 	cmd.Flags().StringVarP(&endDate, "before", "b", "", "find messages received before date (format: `2006-01-02`)")
+	cmd.Flags().StringVar(&largerThan, "larger-than", "", "find messages larger than this size (e.g. 500K, 10M)")
+	cmd.Flags().StringVar(&smallerThan, "smaller-than", "", "find messages smaller than this size (e.g. 500K, 10M)")
 	cmd.Flags().BoolVarP(&unread, "unread", "u", false, "find only unread messages")
 	cmd.Flags().BoolVarP(&read, "read", "r", false, "find only read messages")
 	cmd.Flags().BoolVarP(&or, "or", "o", false, "OR search criteria instead of AND")

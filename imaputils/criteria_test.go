@@ -23,6 +23,11 @@ func TestBuildSearchCriteria(t *testing.T) {
 		return &t
 	}
 
+	// Helper function to create uint32 pointer
+	uint32Ptr := func(value uint32) *uint32 {
+		return &value
+	}
+
 	tests := []struct {
 		name     string
 		opts     SearchOptions
@@ -71,6 +76,18 @@ func TestBuildSearchCriteria(t *testing.T) {
 			expected: &imap.SearchCriteria{
 				Header:    make(map[string][]string),
 				WithFlags: []string{imap.SeenFlag},
+			},
+		},
+		{
+			name: "Size criteria only",
+			opts: SearchOptions{
+				LargerThan:  uint32Ptr(10 * 1024 * 1024),
+				SmallerThan: uint32Ptr(1024 * 1024),
+			},
+			expected: &imap.SearchCriteria{
+				Header:  make(map[string][]string),
+				Larger:  10 * 1024 * 1024,
+				Smaller: 1024 * 1024,
 			},
 		},
 		{

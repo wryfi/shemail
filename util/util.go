@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/wryfi/shemail/imaputils"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -40,6 +41,67 @@ func TimePtr(t time.Time) *time.Time {
 // Helper function to create a bool pointer
 func BoolPtr(b bool) *bool {
 	return &b
+}
+
+// Helper function to create a uint32 pointer
+func Uint32Ptr(value uint32) *uint32 {
+	return &value
+}
+
+// ParseSize parses a human-friendly size string into a number of bytes. It
+// accepts a bare byte count ("1024") or a value with a binary unit suffix
+// (K/KB, M/MB, G/GB, case-insensitive), e.g. "10M" = 10 MiB. The result must
+// fit in a uint32, which is what IMAP SEARCH LARGER/SMALLER use.
+func ParseSize(text string) (uint32, error) {
+	trimmed := strings.TrimSpace(strings.ToUpper(text))
+	if trimmed == "" {
+		return 0, fmt.Errorf("empty size")
+	}
+	trimmed = strings.TrimSuffix(trimmed, "B")
+
+	var multiplier float64 = 1
+	switch {
+	case strings.HasSuffix(trimmed, "K"):
+		multiplier = 1024
+		trimmed = strings.TrimSuffix(trimmed, "K")
+	case strings.HasSuffix(trimmed, "M"):
+		multiplier = 1024 * 1024
+		trimmed = strings.TrimSuffix(trimmed, "M")
+	case strings.HasSuffix(trimmed, "G"):
+		multiplier = 1024 * 1024 * 1024
+		trimmed = strings.TrimSuffix(trimmed, "G")
+	}
+
+	value, err := strconv.ParseFloat(strings.TrimSpace(trimmed), 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid size %q", text)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("size cannot be negative: %q", text)
+	}
+
+	bytes := value * multiplier
+	if bytes > float64(^uint32(0)) {
+		return 0, fmt.Errorf("size %q exceeds the maximum of 4 GiB", text)
+	}
+	return uint32(bytes), nil
+}
+
+// FormatSize renders a byte count as a short human-readable string using binary
+// units, e.g. 1572864 -> "1.5M".
+func FormatSize(size uint32) string {
+	const unit = 1024
+	if size < unit {
+		return fmt.Sprintf("%dB", size)
+	}
+	value := float64(size)
+	units := []string{"K", "M", "G"}
+	unitIndex := -1
+	for value >= unit && unitIndex < len(units)-1 {
+		value /= unit
+		unitIndex++
+	}
+	return fmt.Sprintf("%.1f%s", value, units[unitIndex])
 }
 
 // DateFromString takes a date string of format "yyyy-mm-dd" and returns a Time
@@ -88,7 +150,7 @@ func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
 		return &tablewriter.Table{}, fmt.Errorf("Error loading timezone: %s: %w", tzString, err)
 	}
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Date", "From", "To", "Subject"})
+	table.SetHeader([]string{"Date", "Size", "From", "To", "Subject"})
 	table.SetBorder(false)
 	//table.SetRowLine(true)
 	table.SetAutoWrapText(false)
@@ -97,11 +159,12 @@ func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
 	for _, message := range messages {
 		msgDate := NewMessageDate(message.InternalDate)
 		date := msgDate.FormatConsistent(tz)
+		size := FormatSize(message.Size)
 
 		// A message may arrive without an envelope (malformed message or a
 		// partial fetch); fall back to placeholders rather than panicking.
 		if message.Envelope == nil {
-			table.Append([]string{date, "(unknown)", "(unknown)", "(unknown)"})
+			table.Append([]string{date, size, "(unknown)", "(unknown)", "(unknown)"})
 			continue
 		}
 
@@ -111,7 +174,7 @@ func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
 		}
 		from := TruncateString(imaputils.FormatAddressesCSV(message.Envelope.From), 30)
 		to := imaputils.FormatAddressesCSV(message.Envelope.To)
-		table.Append([]string{date, from, to, subject})
+		table.Append([]string{date, size, from, to, subject})
 
 	}
 	return table, nil

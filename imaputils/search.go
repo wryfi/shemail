@@ -9,13 +9,15 @@ import (
 
 // SearchOptions represents the optional search parameters
 type SearchOptions struct {
-	To        *string    // Optional To address
-	From      *string    // Optional From address
-	Subject   *string    // Optional Subject
-	StartDate *time.Time // Optional start date
-	EndDate   *time.Time // Optional end date
-	Seen      *bool      // Optional seen flag
-	Unseen    *bool      // Optional unseen flag
+	To          *string    // Optional To address
+	From        *string    // Optional From address
+	Subject     *string    // Optional Subject
+	StartDate   *time.Time // Optional start date
+	EndDate     *time.Time // Optional end date
+	Seen        *bool      // Optional seen flag
+	Unseen      *bool      // Optional unseen flag
+	LargerThan  *uint32    // Optional minimum size in bytes (exclusive)
+	SmallerThan *uint32    // Optional maximum size in bytes (exclusive)
 }
 
 // Serialize serializes SearchOptions to json

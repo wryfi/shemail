@@ -12,6 +12,7 @@ func BuildSearchCriteria(opts SearchOptions) *imap.SearchCriteria {
 	addHeaderCriteria(criteria, opts)
 	addDateCriteria(criteria, opts)
 	addFlagCriteria(criteria, opts)
+	addSizeCriteria(criteria, opts)
 
 	logFinalCriteria(criteria)
 	return criteria
@@ -78,6 +79,20 @@ func addFlagCriteria(criteria *imap.SearchCriteria, opts SearchOptions) {
 	}
 }
 
+// addSizeCriteria adds message-size search criteria. IMAP LARGER/SMALLER are
+// exclusive bounds expressed in octets.
+func addSizeCriteria(criteria *imap.SearchCriteria, opts SearchOptions) {
+	if opts.LargerThan != nil {
+		criteria.Larger = *opts.LargerThan
+		log.Debug().Msgf("Adding larger-than criterion: %d bytes", *opts.LargerThan)
+	}
+
+	if opts.SmallerThan != nil {
+		criteria.Smaller = *opts.SmallerThan
+		log.Debug().Msgf("Adding smaller-than criterion: %d bytes", *opts.SmallerThan)
+	}
+}
+
 // logFinalCriteria logs the final search criteria for debugging
 func logFinalCriteria(criteria *imap.SearchCriteria) {
 	log.Debug().Msgf("Final search criteria: %+v", serializeCriteria(criteria))
@@ -98,6 +113,7 @@ func buildIndividualCriteria(opts SearchOptions) []*imap.SearchCriteria {
 	criteriaList = append(criteriaList, buildHeaderCriteria(opts)...)
 	criteriaList = append(criteriaList, buildDateRangeCriteria(opts)...)
 	criteriaList = append(criteriaList, buildFlagCriteria(opts)...)
+	criteriaList = append(criteriaList, buildSizeCriteria(opts)...)
 
 	return criteriaList
 }
@@ -178,6 +194,21 @@ func buildFlagCriteria(opts SearchOptions) []*imap.SearchCriteria {
 			WithoutFlags: []string{imap.SeenFlag},
 		}
 		criteria = append(criteria, c)
+	}
+
+	return criteria
+}
+
+// buildSizeCriteria creates individual criteria for size bounds
+func buildSizeCriteria(opts SearchOptions) []*imap.SearchCriteria {
+	var criteria []*imap.SearchCriteria
+
+	if opts.LargerThan != nil {
+		criteria = append(criteria, &imap.SearchCriteria{Larger: *opts.LargerThan})
+	}
+
+	if opts.SmallerThan != nil {
+		criteria = append(criteria, &imap.SearchCriteria{Smaller: *opts.SmallerThan})
 	}
 
 	return criteria

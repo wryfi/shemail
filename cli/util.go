@@ -113,7 +113,7 @@ func parseAccounts() ([]imaputils.Account, error) {
 }
 
 // buildSearchOptions returns a SearchOptions struct from cobra command parameters
-func buildSearchOptions(to, from, subject, startDate, endDate string, seen, unseen bool) (imaputils.SearchOptions, error) {
+func buildSearchOptions(to, from, subject, startDate, endDate, largerThan, smallerThan string, seen, unseen bool) (imaputils.SearchOptions, error) {
 	searchOpts := imaputils.SearchOptions{}
 
 	if to != "" {
@@ -141,6 +141,21 @@ func buildSearchOptions(to, from, subject, startDate, endDate string, seen, unse
 		}
 		searchOpts.EndDate = util.TimePtr(timeDate)
 	}
+	if largerThan != "" {
+		size, err := util.ParseSize(largerThan)
+		if err != nil {
+			return imaputils.SearchOptions{}, fmt.Errorf("error parsing larger-than size %s: %w", largerThan, err)
+		}
+		searchOpts.LargerThan = util.Uint32Ptr(size)
+	}
+	if smallerThan != "" {
+		size, err := util.ParseSize(smallerThan)
+		if err != nil {
+			return imaputils.SearchOptions{}, fmt.Errorf("error parsing smaller-than size %s: %w", smallerThan, err)
+		}
+		searchOpts.SmallerThan = util.Uint32Ptr(size)
+	}
+
 	searchOpts.Seen = util.BoolPtr(seen)
 	searchOpts.Unseen = util.BoolPtr(unseen)
 

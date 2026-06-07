@@ -141,6 +141,54 @@ func TestMessageDate(t *testing.T) {
 	assert.Contains(t, formatted, "EST") // Should contain timezone abbreviation
 }
 
+func TestParseSize(t *testing.T) {
+	valid := map[string]uint32{
+		"1024": 1024,
+		"500":  500,
+		"1K":   1024,
+		"1KB":  1024,
+		"10M":  10 * 1024 * 1024,
+		"10mb": 10 * 1024 * 1024,
+		"1.5M": 1572864,
+		"2G":   2 * 1024 * 1024 * 1024,
+		" 4K ": 4096,
+	}
+	for input, want := range valid {
+		got, err := ParseSize(input)
+		if err != nil {
+			t.Errorf("ParseSize(%q) unexpected error: %v", input, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("ParseSize(%q) = %d, want %d", input, got, want)
+		}
+	}
+
+	invalid := []string{"", "abc", "10X", "-5M", "5G"} // 5G overflows uint32
+	for _, input := range invalid {
+		if _, err := ParseSize(input); err == nil {
+			t.Errorf("ParseSize(%q) expected an error, got none", input)
+		}
+	}
+}
+
+func TestFormatSize(t *testing.T) {
+	cases := map[uint32]string{
+		0:                  "0B",
+		512:                "512B",
+		1024:               "1.0K",
+		1536:               "1.5K",
+		1024 * 1024:        "1.0M",
+		10 * 1024 * 1024:   "10.0M",
+		1024 * 1024 * 1024: "1.0G",
+	}
+	for size, want := range cases {
+		if got := FormatSize(size); got != want {
+			t.Errorf("FormatSize(%d) = %q, want %q", size, got, want)
+		}
+	}
+}
+
 func TestTabulateMessages(t *testing.T) {
 	messages := []*imap.Message{
 		{
