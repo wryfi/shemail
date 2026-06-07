@@ -1,9 +1,10 @@
 package imaputils
 
 import (
+	"cmp"
 	"fmt"
 	"github.com/emersion/go-imap"
-	"sort"
+	"slices"
 	"strconv"
 	"sync"
 )
@@ -70,14 +71,10 @@ func CountMessagesBySender(dialer IMAPDialer, account Account, folder string, th
 		}
 	}
 
-	// Sort in parallel for large datasets
-	if len(senderCountList) > 1000 {
-		parallelSort(senderCountList)
-	} else {
-		sort.Slice(senderCountList, func(i, j int) bool {
-			return senderCountList[i].MessageCount > senderCountList[j].MessageCount
-		})
-	}
+	// Sort by message count, descending.
+	slices.SortFunc(senderCountList, func(a, b SenderCount) int {
+		return cmp.Compare(b.MessageCount, a.MessageCount)
+	})
 
 	// Pre-allocate result slice
 	tableData := make([][]string, 0, len(senderCountList)+1)
@@ -91,38 +88,4 @@ func CountMessagesBySender(dialer IMAPDialer, account Account, folder string, th
 	}
 
 	return tableData, nil
-}
-
-// Helper function for parallel sorting of large datasets
-func parallelSort(data []SenderCount) {
-	if len(data) <= 1 {
-		return
-	}
-
-	mid := len(data) / 2
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		parallelSort(data[:mid])
-	}()
-	parallelSort(data[mid:])
-	wg.Wait()
-
-	// Merge the sorted halves
-	merged := make([]SenderCount, len(data))
-	i, j, k := 0, mid, 0
-	for i < mid && j < len(data) {
-		if data[i].MessageCount > data[j].MessageCount {
-			merged[k] = data[i]
-			i++
-		} else {
-			merged[k] = data[j]
-			j++
-		}
-		k++
-	}
-	copy(merged[k:], data[i:mid])
-	copy(merged[k+mid-i:], data[j:])
-	copy(data, merged)
 }
