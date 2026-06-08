@@ -36,6 +36,7 @@ type IMAPClient interface {
 	Login(username string, password string) error
 	Logout() error
 	Select(name string, readOnly bool) (*imap.MailboxStatus, error)
+	Status(name string, items []imap.StatusItem) (*imap.MailboxStatus, error)
 	UidCopy(seqset *imap.SeqSet, dest string) error
 	UidFetch(seqset *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error
 	UidMove(seqSet *imap.SeqSet, mailbox string) error
@@ -85,6 +86,10 @@ func (c *ShemailClient) Logout() error {
 
 func (c *ShemailClient) Select(name string, readOnly bool) (*imap.MailboxStatus, error) {
 	return c.Client.Select(name, readOnly)
+}
+
+func (c *ShemailClient) Status(name string, items []imap.StatusItem) (*imap.MailboxStatus, error) {
+	return c.Client.Status(name, items)
 }
 
 func (c *ShemailClient) UidCopy(seqset *imap.SeqSet, dest string) error {

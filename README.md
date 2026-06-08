@@ -199,6 +199,13 @@ Use "shemail [command] --help" for more information about a command.
 
 ## Examples
 
+List folders with per-folder message and unread counts (triage which folders
+are bloated):
+
+```sh
+shemail ls -l
+```
+
 See who is filling up your inbox (senders with at least 25 messages):
 
 ```sh
@@ -228,6 +235,9 @@ shemail find INBOX --subject "sale" --read --delete
 # permanently expunge everything in the trash, bypassing the trash folder
 shemail find "[Gmail]/Trash" --delete --purge
 
+# mark everything from a noisy sender as read
+shemail find INBOX --from notifications@github.com --mark-read
+
 # everything from a sender whose subject does NOT contain "order"
 shemail find INBOX --from info@store.com --not-subject order
 
@@ -256,7 +266,11 @@ A few notes:
   `purge: true` on the account) to permanently expunge them in place instead —
   useful for emptying trash. The confirmation prompt says "permanently delete"
   when purging.
-- `--read`/`--unread` and `--move`/`--delete` are each mutually exclusive.
+- `--read`/`--unread` (search filters) are mutually exclusive. The actions
+  `--move`, `--delete`, `--mark-read`, and `--mark-unread` are also mutually
+  exclusive with each other — run a separate pass for each action you want.
+- `--mark-read`/`--mark-unread` add/remove the `\Seen` flag on the matched
+  messages (no move or delete).
 - By default `find` combines criteria with AND; pass `--or` to match any
   criterion. Subject filters always apply as an additional restriction, even
   with `--or`.

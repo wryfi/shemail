@@ -10,12 +10,23 @@ import (
 
 // ListFolders generates a command to print a list of imap folders on terminal
 func ListFolders() *cobra.Command {
+	var long bool
 	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"folders"},
 		Short:   "print a list of folders in the configured mailbox",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imaputils.Account)
+
+			if long {
+				folders, err := imaputils.ListFoldersWithStatus(imaputils.SheDialer, account)
+				if err != nil {
+					return fmt.Errorf("Error listing folders: %w", err)
+				}
+				util.TabulateFolders(folders).Render()
+				return nil
+			}
+
 			folders, err := imaputils.ListFolders(imaputils.SheDialer, account)
 			if err != nil {
 				return fmt.Errorf("Error listing folders: %w", err)
@@ -27,6 +38,7 @@ func ListFolders() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&long, "long", "l", false, "show message and unread counts per folder")
 	return cmd
 }
 
@@ -50,6 +62,8 @@ func SearchFolder() *cobra.Command {
 		largerThan   string
 		smallerThan  string
 		subjectRegex bool
+		markRead     bool
+		markUnread   bool
 	)
 	cmd := &cobra.Command{
 		Use:     "find <folder>",
@@ -101,6 +115,20 @@ func SearchFolder() *cobra.Command {
 				}
 			}
 
+			if markRead || markUnread {
+				state := "read"
+				if markUnread {
+					state = "unread"
+				}
+				if util.GetConfirmation(fmt.Sprintf("really mark %d messages as %s?", len(messages), state)) {
+					if err := imaputils.MarkMessages(imaputils.SheDialer, account, messages, args[0], markRead); err != nil {
+						return fmt.Errorf("failed to mark messages as %s: %w", state, err)
+					}
+				} else {
+					fmt.Println("operation cancelled")
+				}
+			}
+
 			if deleteFrom {
 				// --purge overrides the account setting for this run, expunging
 				// in place instead of moving to a trash folder.
@@ -139,14 +167,16 @@ func SearchFolder() *cobra.Command {
 	cmd.Flags().StringVarP(&moveTo, "move", "m", "", "move messages to <folder>")
 	cmd.Flags().BoolVarP(&deleteFrom, "delete", "d", false, "delete messages")
 	cmd.Flags().BoolVarP(&purge, "purge", "p", false, "with --delete, permanently expunge messages instead of moving them to trash")
+	cmd.Flags().BoolVar(&markRead, "mark-read", false, "mark messages as read (\\Seen)")
+	cmd.Flags().BoolVar(&markUnread, "mark-unread", false, "mark messages as unread")
 	// --read and --unread are contradictory: requiring both Seen and not-Seen
 	// matches nothing. Reject the combination up front instead of silently
 	// returning zero results.
 	cmd.MarkFlagsMutuallyExclusive("read", "unread")
-	// --move and --delete together would move the messages out of the source
-	// folder and then try to delete those same UIDs from a folder they no
-	// longer live in. Reject the combination rather than fail mid-operation.
-	cmd.MarkFlagsMutuallyExclusive("move", "delete")
+	// At most one action per run. Combining them is either nonsensical (move
+	// then delete the same UIDs from a folder they left) or ambiguous in
+	// ordering; run separate passes if you want more than one.
+	cmd.MarkFlagsMutuallyExclusive("move", "delete", "mark-read", "mark-unread")
 	return cmd
 }
 

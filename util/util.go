@@ -180,6 +180,28 @@ func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
 	return table, nil
 }
 
+// TabulateFolders renders a list of folders with their message and unread
+// counts. Non-selectable container folders show "-" for their counts.
+func TabulateFolders(folders []imaputils.FolderStatus) *tablewriter.Table {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Folder", "Messages", "Unread"})
+	table.SetBorder(false)
+	table.SetAutoWrapText(false)
+	table.SetColumnAlignment([]int{tablewriter.ALIGN_LEFT, tablewriter.ALIGN_RIGHT, tablewriter.ALIGN_RIGHT})
+
+	for _, folder := range folders {
+		messages := "-"
+		unread := "-"
+		if folder.Selectable {
+			messages = strconv.Itoa(int(folder.Messages))
+			unread = strconv.Itoa(int(folder.Unseen))
+		}
+		table.Append([]string{folder.Name, messages, unread})
+	}
+
+	return table
+}
+
 // TabulateSenders creates a table from the given data and renders it to the terminal
 func TabulateSenders(data [][]string) *tablewriter.Table {
 	table := tablewriter.NewWriter(os.Stdout)

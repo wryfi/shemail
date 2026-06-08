@@ -12,6 +12,7 @@ import (
 // MockIMAPClientListFolders implements IMAPClient interface
 type MockIMAPClientListFolders struct {
 	listFunc    func(ref string, name string, ch chan *imap.MailboxInfo) error
+	statusFunc  func(name string, items []imap.StatusItem) (*imap.MailboxStatus, error)
 	logoutCalls int
 }
 
@@ -35,6 +36,12 @@ func (m *MockIMAPClientListFolders) GetClient() *client.Client                  
 func (m *MockIMAPClientListFolders) Login(username string, password string) error { return nil }
 func (m *MockIMAPClientListFolders) Select(name string, readOnly bool) (*imap.MailboxStatus, error) {
 	return nil, nil
+}
+func (m *MockIMAPClientListFolders) Status(name string, items []imap.StatusItem) (*imap.MailboxStatus, error) {
+	if m.statusFunc != nil {
+		return m.statusFunc(name, items)
+	}
+	return &imap.MailboxStatus{}, nil
 }
 func (m *MockIMAPClientListFolders) UidCopy(seqSet *imap.SeqSet, mailbox string) error { return nil }
 func (m *MockIMAPClientListFolders) UidFetch(seqset *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error {
@@ -147,4 +154,37 @@ func TestListFolders(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestListFoldersWithStatus(t *testing.T) {
+	mockClient := &MockIMAPClientListFolders{
+		listFunc: func(ref string, name string, ch chan *imap.MailboxInfo) error {
+			go func() {
+				ch <- &imap.MailboxInfo{Name: "INBOX"}
+				ch <- &imap.MailboxInfo{Name: "[Gmail]", Attributes: []string{imap.NoSelectAttr}}
+				ch <- &imap.MailboxInfo{Name: "Archive"}
+				close(ch)
+			}()
+			return nil
+		},
+		statusFunc: func(name string, items []imap.StatusItem) (*imap.MailboxStatus, error) {
+			switch name {
+			case "INBOX":
+				return &imap.MailboxStatus{Messages: 10, Unseen: 3}, nil
+			case "Archive":
+				return &imap.MailboxStatus{Messages: 100, Unseen: 0}, nil
+			}
+			return nil, errors.New("unexpected status call for " + name)
+		},
+	}
+	dialer := &MockDialerListFolders{client: mockClient}
+
+	folders, err := ListFoldersWithStatus(dialer, Account{})
+	assert.NoError(t, err)
+	assert.Equal(t, []FolderStatus{
+		{Name: "INBOX", Messages: 10, Unseen: 3, Selectable: true},
+		{Name: "[Gmail]", Selectable: false},
+		{Name: "Archive", Messages: 100, Unseen: 0, Selectable: true},
+	}, folders)
+	assert.Equal(t, 1, mockClient.logoutCalls, "Logout should be called exactly once")
 }
