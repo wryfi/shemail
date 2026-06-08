@@ -189,6 +189,13 @@ func TestFormatSize(t *testing.T) {
 	}
 }
 
+func TestUnreadMarker(t *testing.T) {
+	assert.Equal(t, "", UnreadMarker([]string{imap.SeenFlag}), "seen message has no marker")
+	assert.Equal(t, "", UnreadMarker([]string{"\\Answered", imap.SeenFlag}), "seen among others")
+	assert.Equal(t, "●", UnreadMarker(nil), "no flags = unread")
+	assert.Equal(t, "●", UnreadMarker([]string{"\\Flagged"}), "flagged but not seen = unread")
+}
+
 func TestTabulateMessages(t *testing.T) {
 	messages := []*imap.Message{
 		{

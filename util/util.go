@@ -142,6 +142,17 @@ func (md MessageDate) FormatConsistent(timezone *time.Location) string {
 	return localTime.Format("2006-01-02 15:04:05 -0700 MST")
 }
 
+// UnreadMarker returns a dot for messages lacking the \Seen flag (unread) and
+// an empty string for read messages, for use as a compact status indicator.
+func UnreadMarker(flags []string) string {
+	for _, flag := range flags {
+		if flag == imap.SeenFlag {
+			return ""
+		}
+	}
+	return "●"
+}
+
 // TabulateMessages takes a list of imap messages and displays them in a table
 func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
 	tzString := viper.GetString("timezone")
@@ -150,13 +161,15 @@ func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
 		return &tablewriter.Table{}, fmt.Errorf("Error loading timezone: %s: %w", tzString, err)
 	}
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Date", "Size", "From", "To", "Subject"})
+	// The leading column marks unread messages with a dot (read messages blank).
+	table.SetHeader([]string{"", "Date", "Size", "From", "To", "Subject"})
 	table.SetBorder(false)
 	//table.SetRowLine(true)
 	table.SetAutoWrapText(false)
 	table.SetCaption(true, fmt.Sprintf("Found %d messages", len(messages)))
 
 	for _, message := range messages {
+		unread := UnreadMarker(message.Flags)
 		msgDate := NewMessageDate(message.InternalDate)
 		date := msgDate.FormatConsistent(tz)
 		size := FormatSize(message.Size)
@@ -164,7 +177,7 @@ func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
 		// A message may arrive without an envelope (malformed message or a
 		// partial fetch); fall back to placeholders rather than panicking.
 		if message.Envelope == nil {
-			table.Append([]string{date, size, "(unknown)", "(unknown)", "(unknown)"})
+			table.Append([]string{unread, date, size, "(unknown)", "(unknown)", "(unknown)"})
 			continue
 		}
 
@@ -174,7 +187,7 @@ func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
 		}
 		from := TruncateString(imaputils.FormatAddressesCSV(message.Envelope.From), 30)
 		to := imaputils.FormatAddressesCSV(message.Envelope.To)
-		table.Append([]string{date, size, from, to, subject})
+		table.Append([]string{unread, date, size, from, to, subject})
 
 	}
 	return table, nil
