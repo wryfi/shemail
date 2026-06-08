@@ -185,7 +185,7 @@ func TestSearchOptions_Serialize(t *testing.T) {
 			opts: SearchOptions{
 				To:        stringPtr("to@example.com"),
 				From:      stringPtr("from@example.com"),
-				Subject:   stringPtr("test subject"),
+				Subject:   []string{"test subject"},
 				StartDate: &now,
 				EndDate:   &now,
 				Seen:      &seen,
@@ -194,7 +194,7 @@ func TestSearchOptions_Serialize(t *testing.T) {
 			expected: `{
   "To": "to@example.com",
   "From": "from@example.com",
-  "Subject": "test subject",
+  "Subject": ["test subject"],
   "StartDate": "` + now.Format(time.RFC3339Nano) + `",
   "EndDate": "` + now.Format(time.RFC3339Nano) + `",
   "Seen": true,
@@ -203,7 +203,8 @@ func TestSearchOptions_Serialize(t *testing.T) {
   "NotFrom": null,
   "NotSubject": null,
   "LargerThan": null,
-  "SmallerThan": null
+  "SmallerThan": null,
+  "SubjectRegex": false
 }`,
 		},
 		{
@@ -221,7 +222,8 @@ func TestSearchOptions_Serialize(t *testing.T) {
   "NotFrom": null,
   "NotSubject": null,
   "LargerThan": null,
-  "SmallerThan": null
+  "SmallerThan": null,
+  "SubjectRegex": false
 }`,
 		},
 	}

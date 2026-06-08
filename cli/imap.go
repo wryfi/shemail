@@ -33,22 +33,23 @@ func ListFolders() *cobra.Command {
 // SearchFolder generates a command to search a folder for messages based on various criteria
 func SearchFolder() *cobra.Command {
 	var (
-		endDate     string
-		from        string
-		or          bool
-		startDate   string
-		subject     string
-		to          string
-		notFrom     string
-		notSubject  string
-		notTo       string
-		unread      bool
-		read        bool
-		moveTo      string
-		deleteFrom  bool
-		purge       bool
-		largerThan  string
-		smallerThan string
+		endDate      string
+		from         string
+		or           bool
+		startDate    string
+		subject      []string
+		to           string
+		notFrom      string
+		notSubject   []string
+		notTo        string
+		unread       bool
+		read         bool
+		moveTo       string
+		deleteFrom   bool
+		purge        bool
+		largerThan   string
+		smallerThan  string
+		subjectRegex bool
 	)
 	cmd := &cobra.Command{
 		Use:     "find <folder>",
@@ -61,6 +62,7 @@ func SearchFolder() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error building search options: %v", err)
 			}
+			searchOpts.SubjectRegex = subjectRegex
 
 			var criteria *imap.SearchCriteria
 			if or {
@@ -72,6 +74,14 @@ func SearchFolder() *cobra.Command {
 			messages, err := imaputils.SearchMessages(imaputils.SheDialer, account, args[0], criteria)
 			if err != nil {
 				return fmt.Errorf("error searching folder %s: %w", args[0], err)
+			}
+
+			// Subject matching is performed client-side against the decoded
+			// subject: server-side SEARCH SUBJECT is backed by a full-text index
+			// and is unreliable, especially for negation.
+			messages, err = imaputils.FilterBySubject(messages, searchOpts)
+			if err != nil {
+				return fmt.Errorf("error filtering by subject: %w", err)
 			}
 
 			if table, err := util.TabulateMessages(messages); err == nil {
@@ -114,10 +124,11 @@ func SearchFolder() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&to, "to", "t", "", "find messages to this address")
 	cmd.Flags().StringVarP(&from, "from", "f", "", "find messages from this address")
-	cmd.Flags().StringVarP(&subject, "subject", "s", "", "match subject")
+	cmd.Flags().StringArrayVarP(&subject, "subject", "s", nil, "match subject (repeatable; matches if any matches)")
 	cmd.Flags().StringVar(&notTo, "not-to", "", "exclude messages to this address")
 	cmd.Flags().StringVar(&notFrom, "not-from", "", "exclude messages from this address")
-	cmd.Flags().StringVar(&notSubject, "not-subject", "", "exclude messages whose subject matches")
+	cmd.Flags().StringArrayVar(&notSubject, "not-subject", nil, "exclude messages whose subject matches (repeatable; excludes if any matches)")
+	cmd.Flags().BoolVar(&subjectRegex, "subject-regex", false, "treat --subject and --not-subject as regular expressions")
 	cmd.Flags().StringVarP(&startDate, "after", "a", "", "find messages received after date (format: `2006-01-02`)")
 	cmd.Flags().StringVarP(&endDate, "before", "b", "", "find messages received before date (format: `2006-01-02`)")
 	cmd.Flags().StringVar(&largerThan, "larger-than", "", "find messages larger than this size (e.g. 500K, 10M)")

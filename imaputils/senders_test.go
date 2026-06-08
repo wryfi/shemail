@@ -90,7 +90,7 @@ func TestSearchOptionsSenders_Serialize(t *testing.T) {
 			opts: SearchOptions{
 				To:        stringPtr("recipient@example.com"),
 				From:      stringPtr("sender@example.com"),
-				Subject:   stringPtr("Test Subject"),
+				Subject:   []string{"Test Subject"},
 				StartDate: timePtr(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)),
 				EndDate:   timePtr(time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)),
 				Seen:      boolPtr(true),
@@ -210,10 +210,7 @@ func assertSearchOptionsEqual(t *testing.T, expected, actual SearchOptions) {
 		assert.Equal(t, *expected.From, *actual.From)
 	}
 
-	assert.Equal(t, expected.Subject != nil, actual.Subject != nil)
-	if expected.Subject != nil {
-		assert.Equal(t, *expected.Subject, *actual.Subject)
-	}
+	assert.Equal(t, expected.Subject, actual.Subject)
 
 	assert.Equal(t, expected.StartDate != nil, actual.StartDate != nil)
 	if expected.StartDate != nil {

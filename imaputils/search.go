@@ -9,18 +9,24 @@ import (
 
 // SearchOptions represents the optional search parameters
 type SearchOptions struct {
-	To          *string    // Optional To address
-	From        *string    // Optional From address
-	Subject     *string    // Optional Subject
-	NotTo       *string    // Optional negated To address (must NOT match)
-	NotFrom     *string    // Optional negated From address (must NOT match)
-	NotSubject  *string    // Optional negated Subject (must NOT match)
+	To      *string // Optional To address
+	From    *string // Optional From address
+	NotTo   *string // Optional negated To address (must NOT match)
+	NotFrom *string // Optional negated From address (must NOT match)
+	// Subject/NotSubject are matched client-side (see FilterBySubject), not via
+	// server-side SEARCH. A message is kept if its subject matches ANY Subject
+	// pattern and NONE of the NotSubject patterns.
+	Subject     []string
+	NotSubject  []string
 	StartDate   *time.Time // Optional start date
 	EndDate     *time.Time // Optional end date
 	Seen        *bool      // Optional seen flag
 	Unseen      *bool      // Optional unseen flag
 	LargerThan  *uint32    // Optional minimum size in bytes (exclusive)
 	SmallerThan *uint32    // Optional maximum size in bytes (exclusive)
+	// SubjectRegex treats Subject/NotSubject as regular expressions rather than
+	// case-insensitive substrings.
+	SubjectRegex bool
 }
 
 // Serialize serializes SearchOptions to json

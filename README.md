@@ -227,16 +227,39 @@ shemail find INBOX --subject "sale" --read --delete
 
 # permanently expunge everything in the trash, bypassing the trash folder
 shemail find "[Gmail]/Trash" --delete --purge
+
+# everything from a sender whose subject does NOT contain "order"
+shemail find INBOX --from info@store.com --not-subject order
+
+# delete acorns mail unless it's a tax form or a statement
+shemail find INBOX --from info@acorns.com --not-subject "tax forms" --not-subject statement --delete
+
+# regex subject matching: anything mentioning a dollar amount
+shemail find INBOX --subject '\$[0-9]+' --subject-regex
 ```
 
 A few notes:
 
+- **Subject matching (`--subject`/`--not-subject`) is performed client-side**
+  against the decoded subject, not via the server's `SEARCH SUBJECT`. Server-side
+  subject search is often backed by a full-text index (e.g. Dovecot fts) that is
+  unreliable — particularly for negation — so shemail filters locally to match
+  exactly what you see in the output. Pass `--subject-regex` to treat the
+  patterns as regular expressions (case-sensitive; use `(?i)` for
+  case-insensitive). Because it filters after fetching, a subject-only search
+  with no other criteria will scan the whole folder.
+- Both `--subject` and `--not-subject` are repeatable. A message is kept if its
+  subject matches **any** `--subject` and **none** of the `--not-subject`
+  patterns. Each occurrence is one literal pattern (commas are not split), so
+  `--subject "a, b"` matches the literal text `a, b`.
 - `--delete` moves messages to a trash folder by default. Add `--purge` (or set
   `purge: true` on the account) to permanently expunge them in place instead —
   useful for emptying trash. The confirmation prompt says "permanently delete"
   when purging.
 - `--read`/`--unread` and `--move`/`--delete` are each mutually exclusive.
-- By default `find` combines criteria with AND; pass `--or` to match any criterion.
+- By default `find` combines criteria with AND; pass `--or` to match any
+  criterion. Subject filters always apply as an additional restriction, even
+  with `--or`.
 - Use `-A <account>` to target an account other than the default.
 - The destination folder for `--move` is created automatically if it doesn't exist.
 

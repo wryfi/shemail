@@ -43,15 +43,13 @@ func TestBuildSearchCriteria(t *testing.T) {
 		{
 			name: "Header criteria only",
 			opts: SearchOptions{
-				To:      strPtr("recipient@example.com"),
-				From:    strPtr("sender@example.com"),
-				Subject: strPtr("test subject"),
+				To:   strPtr("recipient@example.com"),
+				From: strPtr("sender@example.com"),
 			},
 			expected: &imap.SearchCriteria{
 				Header: map[string][]string{
-					"To":      {"recipient@example.com"},
-					"From":    {"sender@example.com"},
-					"Subject": {"test subject"},
+					"To":   {"recipient@example.com"},
+					"From": {"sender@example.com"},
 				},
 			},
 		},
@@ -81,15 +79,15 @@ func TestBuildSearchCriteria(t *testing.T) {
 		{
 			name: "Negated header criteria",
 			opts: SearchOptions{
-				From:       strPtr("company@example.com"),
-				NotSubject: strPtr("order"),
+				From:    strPtr("company@example.com"),
+				NotFrom: strPtr("noreply@example.com"),
 			},
 			expected: &imap.SearchCriteria{
 				Header: map[string][]string{
 					"From": {"company@example.com"},
 				},
 				Not: []*imap.SearchCriteria{
-					{Header: map[string][]string{"Subject": {"order"}}},
+					{Header: map[string][]string{"From": {"noreply@example.com"}}},
 				},
 			},
 		},
@@ -132,6 +130,7 @@ func TestBuildSearchCriteria(t *testing.T) {
 
 func TestBuildORSearchCriteria(t *testing.T) {
 	strPtr := func(s string) *string { return &s }
+	boolPtr := func(b bool) *bool { return &b }
 
 	tests := []struct {
 		name   string
@@ -141,12 +140,12 @@ func TestBuildORSearchCriteria(t *testing.T) {
 		{
 			name: "Single criterion",
 			opts: SearchOptions{
-				Subject: strPtr("test"),
+				From: strPtr("sender@example.com"),
 			},
 			verify: func(t *testing.T, result *imap.SearchCriteria) {
 				assert.Len(t, result.Header, 1, "Should have one header")
-				values := result.Header["Subject"]
-				assert.Equal(t, []string{"test"}, values, "Subject should match")
+				values := result.Header["From"]
+				assert.Equal(t, []string{"sender@example.com"}, values, "From should match")
 			},
 		},
 		{
@@ -181,58 +180,42 @@ func TestBuildORSearchCriteria(t *testing.T) {
 		{
 			name: "Three criteria",
 			opts: SearchOptions{
-				To:      strPtr("recipient@example.com"),
-				From:    strPtr("sender@example.com"),
-				Subject: strPtr("test"),
+				To:   strPtr("recipient@example.com"),
+				From: strPtr("sender@example.com"),
+				Seen: boolPtr(true),
 			},
 			verify: func(t *testing.T, result *imap.SearchCriteria) {
-				// Helper function to check if a criteria contains a specific header
-				hasHeader := func(c *imap.SearchCriteria, key, value string) bool {
-					return c.Header.Get(key) == value
+				// Collect the leaf criteria from the OR tree.
+				var leaves []*imap.SearchCriteria
+				var walk func(c *imap.SearchCriteria)
+				walk = func(c *imap.SearchCriteria) {
+					if len(c.Or) == 1 {
+						walk(c.Or[0][0])
+						walk(c.Or[0][1])
+						return
+					}
+					leaves = append(leaves, c)
 				}
+				walk(result)
 
-				// Verify the structure is an OR condition
-				assert.Len(t, result.Or, 1)
-				assert.Len(t, result.Or[0], 2)
-
-				// We should find all three criteria somewhere in the tree
 				foundTo := false
 				foundFrom := false
-				foundSubject := false
-
-				// Check first level
-				if hasHeader(result.Or[0][0], "To", "recipient@example.com") {
-					foundTo = true
-				}
-				if hasHeader(result.Or[0][0], "From", "sender@example.com") {
-					foundFrom = true
-				}
-				if hasHeader(result.Or[0][0], "Subject", "test") {
-					foundSubject = true
-				}
-
-				// Check second level
-				if result.Or[0][1].Or != nil {
-					subCriteria := []*imap.SearchCriteria{
-						result.Or[0][1].Or[0][0],
-						result.Or[0][1].Or[0][1],
+				foundFlag := false
+				for _, c := range leaves {
+					if c.Header.Get("To") == "recipient@example.com" {
+						foundTo = true
 					}
-					for _, c := range subCriteria {
-						if hasHeader(c, "To", "recipient@example.com") {
-							foundTo = true
-						}
-						if hasHeader(c, "From", "sender@example.com") {
-							foundFrom = true
-						}
-						if hasHeader(c, "Subject", "test") {
-							foundSubject = true
-						}
+					if c.Header.Get("From") == "sender@example.com" {
+						foundFrom = true
+					}
+					if len(c.WithFlags) > 0 {
+						foundFlag = true
 					}
 				}
 
 				assert.True(t, foundTo, "Should find To criterion")
 				assert.True(t, foundFrom, "Should find From criterion")
-				assert.True(t, foundSubject, "Should find Subject criterion")
+				assert.True(t, foundFlag, "Should find flag criterion")
 			},
 		},
 	}
@@ -256,7 +239,6 @@ func TestBuildIndividualCriteria(t *testing.T) {
 	opts := SearchOptions{
 		To:        strPtr("recipient@example.com"),
 		From:      strPtr("sender@example.com"),
-		Subject:   strPtr("test"),
 		StartDate: timePtr(startDate),
 		EndDate:   timePtr(endDate),
 		Seen:      boolPtr(true),
@@ -264,8 +246,8 @@ func TestBuildIndividualCriteria(t *testing.T) {
 
 	result := buildIndividualCriteria(opts)
 
-	// We expect 5 criteria: To, From, Subject, DateRange (combined), and Seen
-	assert.Equal(t, 5, len(result))
+	// We expect 4 criteria: To, From, DateRange (combined), and Seen
+	assert.Equal(t, 4, len(result))
 
 	// Test that each type of criteria is present
 	hasHeader := false

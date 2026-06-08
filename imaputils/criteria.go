@@ -32,12 +32,12 @@ func initializeCriteria() *imap.SearchCriteria {
 	}
 }
 
-// addHeaderCriteria adds To, From, and Subject criteria if specified
+// addHeaderCriteria adds To and From criteria if specified. Subject is matched
+// client-side (see FilterBySubject), not via server-side SEARCH.
 func addHeaderCriteria(criteria *imap.SearchCriteria, opts SearchOptions) {
 	headerFields := map[string]*string{
-		"To":      opts.To,
-		"From":    opts.From,
-		"Subject": opts.Subject,
+		"To":   opts.To,
+		"From": opts.From,
 	}
 
 	for field, value := range headerFields {
@@ -52,9 +52,8 @@ func addHeaderCriteria(criteria *imap.SearchCriteria, opts SearchOptions) {
 // field->value map, so the AND and OR builders can share the mapping.
 func negatedHeaderFields(opts SearchOptions) map[string]*string {
 	return map[string]*string{
-		"To":      opts.NotTo,
-		"From":    opts.NotFrom,
-		"Subject": opts.NotSubject,
+		"To":   opts.NotTo,
+		"From": opts.NotFrom,
 	}
 }
 
@@ -148,9 +147,8 @@ func buildHeaderCriteria(opts SearchOptions) []*imap.SearchCriteria {
 	var criteria []*imap.SearchCriteria
 
 	headerFields := map[string]*string{
-		"To":      opts.To,
-		"From":    opts.From,
-		"Subject": opts.Subject,
+		"To":   opts.To,
+		"From": opts.From,
 	}
 
 	for field, value := range headerFields {

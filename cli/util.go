@@ -113,7 +113,7 @@ func parseAccounts() ([]imaputils.Account, error) {
 }
 
 // buildSearchOptions returns a SearchOptions struct from cobra command parameters
-func buildSearchOptions(to, from, subject, notTo, notFrom, notSubject, startDate, endDate, largerThan, smallerThan string, seen, unseen bool) (imaputils.SearchOptions, error) {
+func buildSearchOptions(to, from string, subject []string, notTo, notFrom string, notSubject []string, startDate, endDate, largerThan, smallerThan string, seen, unseen bool) (imaputils.SearchOptions, error) {
 	searchOpts := imaputils.SearchOptions{}
 
 	if to != "" {
@@ -122,8 +122,8 @@ func buildSearchOptions(to, from, subject, notTo, notFrom, notSubject, startDate
 	if from != "" {
 		searchOpts.From = util.StringPtr(from)
 	}
-	if subject != "" {
-		searchOpts.Subject = util.StringPtr(subject)
+	if len(subject) > 0 {
+		searchOpts.Subject = subject
 	}
 	if notTo != "" {
 		searchOpts.NotTo = util.StringPtr(notTo)
@@ -131,8 +131,8 @@ func buildSearchOptions(to, from, subject, notTo, notFrom, notSubject, startDate
 	if notFrom != "" {
 		searchOpts.NotFrom = util.StringPtr(notFrom)
 	}
-	if notSubject != "" {
-		searchOpts.NotSubject = util.StringPtr(notSubject)
+	if len(notSubject) > 0 {
+		searchOpts.NotSubject = notSubject
 	}
 	if startDate != "" {
 		log.Debug().Msgf("Parsing start date: %s", startDate)
