@@ -64,6 +64,8 @@ func SearchFolder() *cobra.Command {
 		subjectRegex bool
 		markRead     bool
 		markUnread   bool
+		sortBy       string
+		reverse      bool
 	)
 	cmd := &cobra.Command{
 		Use:     "find <folder>",
@@ -77,6 +79,11 @@ func SearchFolder() *cobra.Command {
 				return fmt.Errorf("error building search options: %v", err)
 			}
 			searchOpts.SubjectRegex = subjectRegex
+
+			sortField, err := imaputils.ParseSortField(sortBy)
+			if err != nil {
+				return err
+			}
 
 			var criteria *imap.SearchCriteria
 			if or {
@@ -97,6 +104,8 @@ func SearchFolder() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error filtering by subject: %w", err)
 			}
+
+			imaputils.SortMessages(messages, sortField, reverse)
 
 			if table, err := util.TabulateMessages(messages); err == nil {
 				table.Render()
@@ -169,6 +178,8 @@ func SearchFolder() *cobra.Command {
 	cmd.Flags().BoolVarP(&purge, "purge", "p", false, "with --delete, permanently expunge messages instead of moving them to trash")
 	cmd.Flags().BoolVar(&markRead, "mark-read", false, "mark messages as read (\\Seen)")
 	cmd.Flags().BoolVar(&markUnread, "mark-unread", false, "mark messages as unread")
+	cmd.Flags().StringVar(&sortBy, "sort", "date", "sort by: date, subject, from, to, size, unread")
+	cmd.Flags().BoolVarP(&reverse, "reverse", "R", false, "reverse the sort order")
 	// --read and --unread are contradictory: requiring both Seen and not-Seen
 	// matches nothing. Reject the combination up front instead of silently
 	// returning zero results.

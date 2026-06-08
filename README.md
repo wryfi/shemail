@@ -222,6 +222,20 @@ shemail find INBOX --after 2022-01-01 --before 2023-01-01
 
 Dates use `YYYY-MM-DD` format and filter on the message's delivery date.
 
+Sort the output with `--sort` (`date`, `subject`, `from`, `to`, `size`, or
+`unread`) and flip the order with `--reverse`/`-R`:
+
+```sh
+# biggest messages first
+shemail find INBOX --sort size
+
+# unread first, then newest within each group
+shemail find INBOX --sort unread
+
+# oldest first
+shemail find INBOX --sort date --reverse
+```
+
 Combine search criteria with `--move` or `--delete` to act on the matches. You
 are shown the matching messages and asked to confirm before anything happens:
 

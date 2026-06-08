@@ -61,7 +61,8 @@ func SearchMessages(dialer IMAPDialer, account Account, mailbox string, criteria
 		return nil, err
 	}
 
-	sortMessagesByDate(messages)
+	// Ordering is applied by the caller via SortMessages (the find command
+	// exposes --sort); leave the fetched order untouched here.
 	return messages, nil
 }
 
