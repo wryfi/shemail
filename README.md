@@ -230,6 +230,13 @@ shemail find INBOX --after 2022-01-01 --before 2023-01-01
 
 Dates use `YYYY-MM-DD` format and filter on the message's delivery date.
 
+Use `--count` to print just the number of matches instead of the table (handy
+for scripting):
+
+```sh
+shemail find INBOX --from noreply@spam.com --count
+```
+
 Sort the output with `--sort` (`date`, `subject`, `from`, `to`, `size`, or
 `unread`) and flip the order with `--reverse`/`-R`:
 

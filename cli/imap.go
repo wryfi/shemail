@@ -71,6 +71,7 @@ func SearchFolder() *cobra.Command {
 		sortBy       string
 		reverse      bool
 		copyTo       string
+		countOnly    bool
 	)
 	cmd := &cobra.Command{
 		Use:     "find <folder>",
@@ -111,6 +112,11 @@ func SearchFolder() *cobra.Command {
 			}
 
 			imaputils.SortMessages(messages, sortField, reverse)
+
+			if countOnly {
+				fmt.Println(len(messages))
+				return nil
+			}
 
 			if table, err := util.TabulateMessages(messages); err == nil {
 				table.Render()
@@ -196,6 +202,7 @@ func SearchFolder() *cobra.Command {
 	cmd.Flags().BoolVar(&markUnread, "mark-unread", false, "mark messages as unread")
 	cmd.Flags().StringVar(&sortBy, "sort", "date", "sort by: date, subject, from, to, size, unread")
 	cmd.Flags().BoolVarP(&reverse, "reverse", "R", false, "reverse the sort order")
+	cmd.Flags().BoolVar(&countOnly, "count", false, "print only the number of matching messages")
 	// --read and --unread are contradictory: requiring both Seen and not-Seen
 	// matches nothing. Reject the combination up front instead of silently
 	// returning zero results.
@@ -203,7 +210,7 @@ func SearchFolder() *cobra.Command {
 	// At most one action per run. Combining them is either nonsensical (move
 	// then delete the same UIDs from a folder they left) or ambiguous in
 	// ordering; run separate passes if you want more than one.
-	cmd.MarkFlagsMutuallyExclusive("move", "copy", "delete", "mark-read", "mark-unread")
+	cmd.MarkFlagsMutuallyExclusive("move", "copy", "delete", "mark-read", "mark-unread", "count")
 	return cmd
 }
 
