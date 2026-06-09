@@ -66,6 +66,7 @@ func SearchFolder() *cobra.Command {
 		markUnread   bool
 		sortBy       string
 		reverse      bool
+		copyTo       string
 	)
 	cmd := &cobra.Command{
 		Use:     "find <folder>",
@@ -124,6 +125,16 @@ func SearchFolder() *cobra.Command {
 				}
 			}
 
+			if copyTo != "" {
+				if util.GetConfirmation(fmt.Sprintf("really copy %d messages to %s?", len(messages), copyTo)) {
+					if err := imaputils.CopyMessages(imaputils.SheDialer, account, messages, args[0], copyTo); err != nil {
+						return fmt.Errorf("failed to copy messages to %s: %w", copyTo, err)
+					}
+				} else {
+					fmt.Println("operation cancelled")
+				}
+			}
+
 			if markRead || markUnread {
 				state := "read"
 				if markUnread {
@@ -174,6 +185,7 @@ func SearchFolder() *cobra.Command {
 	cmd.Flags().BoolVarP(&read, "read", "r", false, "find only read messages")
 	cmd.Flags().BoolVarP(&or, "or", "o", false, "OR search criteria instead of AND")
 	cmd.Flags().StringVarP(&moveTo, "move", "m", "", "move messages to <folder>")
+	cmd.Flags().StringVar(&copyTo, "copy", "", "copy messages to <folder>")
 	cmd.Flags().BoolVarP(&deleteFrom, "delete", "d", false, "delete messages")
 	cmd.Flags().BoolVarP(&purge, "purge", "p", false, "with --delete, permanently expunge messages instead of moving them to trash")
 	cmd.Flags().BoolVar(&markRead, "mark-read", false, "mark messages as read (\\Seen)")
@@ -187,7 +199,7 @@ func SearchFolder() *cobra.Command {
 	// At most one action per run. Combining them is either nonsensical (move
 	// then delete the same UIDs from a folder they left) or ambiguous in
 	// ordering; run separate passes if you want more than one.
-	cmd.MarkFlagsMutuallyExclusive("move", "delete", "mark-read", "mark-unread")
+	cmd.MarkFlagsMutuallyExclusive("move", "copy", "delete", "mark-read", "mark-unread")
 	return cmd
 }
 

@@ -285,6 +285,8 @@ A few notes:
   exclusive with each other — run a separate pass for each action you want.
 - `--mark-read`/`--mark-unread` add/remove the `\Seen` flag on the matched
   messages (no move or delete).
+- `--copy <folder>` copies the matched messages to another folder (creating it
+  if needed), leaving the originals in place.
 - In `find` output, the leading `●` marks unread messages; read messages have a
   blank in that column.
 - By default `find` combines criteria with AND; pass `--or` to match any
