@@ -296,6 +296,62 @@ func EmptyTrash() *cobra.Command {
 	return cmd
 }
 
+// Dedupe generates a command to delete duplicate messages (sharing a
+// Message-ID) within a folder, keeping the oldest copy of each.
+func Dedupe() *cobra.Command {
+	var (
+		purge     bool
+		assumeYes bool
+	)
+	cmd := &cobra.Command{
+		Use:   "dedupe <folder>",
+		Short: "delete duplicate messages in a folder, keeping the oldest copy",
+		Args:  validateFolderArg,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			account := cmd.Context().Value("account").(imaputils.Account)
+
+			criteria := imaputils.BuildSearchCriteria(imaputils.SearchOptions{})
+			messages, err := imaputils.SearchMessages(imaputils.SheDialer, account, args[0], criteria)
+			if err != nil {
+				return fmt.Errorf("error searching folder %s: %w", args[0], err)
+			}
+
+			// Keep the oldest copy of each message: sort oldest-first so the
+			// first occurrence of each Message-ID (the one kept) is the oldest.
+			imaputils.SortMessages(messages, imaputils.SortDate, true)
+			duplicates := imaputils.FindDuplicates(messages)
+
+			if len(duplicates) == 0 {
+				fmt.Printf("no duplicate messages found in %s\n", args[0])
+				return nil
+			}
+
+			if table, err := util.TabulateMessages(duplicates); err == nil {
+				table.Render()
+			} else {
+				return fmt.Errorf("error tabulating messages: %w", err)
+			}
+
+			account.Purge = account.Purge || purge
+			action := "delete"
+			if account.Purge {
+				action = "permanently delete"
+			}
+			if assumeYes || util.GetConfirmation(fmt.Sprintf("really %s %d duplicate messages from %s?", action, len(duplicates), args[0])) {
+				if err := imaputils.DeleteMessages(imaputils.SheDialer, account, duplicates, args[0]); err != nil {
+					return fmt.Errorf("failed to delete duplicates from %s: %w", args[0], err)
+				}
+			} else {
+				fmt.Println("operation cancelled")
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVarP(&purge, "purge", "p", false, "permanently expunge duplicates instead of moving them to trash")
+	cmd.Flags().BoolVarP(&assumeYes, "yes", "y", false, "skip the confirmation prompt")
+	return cmd
+}
+
 // CreateFolder generates a command to recursively create the requested imap folder in account
 func CreateFolder() *cobra.Command {
 	cmd := &cobra.Command{

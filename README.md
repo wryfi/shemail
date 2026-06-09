@@ -183,6 +183,7 @@ Usage:
 Available Commands:
   completion  Generate the autocompletion script for the specified shell
   config      Print shemail configuration
+  dedupe      delete duplicate messages in a folder, keeping the oldest copy
   empty-trash permanently delete all messages in the trash folder
   find        search the specified folder for messages
   help        Help about any command
@@ -267,6 +268,9 @@ shemail find "[Gmail]/Trash" --delete --purge
 
 # or just empty the trash folder entirely
 shemail empty-trash
+
+# delete duplicate messages in a folder (same Message-ID), keeping the oldest
+shemail dedupe Archive
 
 # mark everything from a noisy sender as read
 shemail find INBOX --from notifications@github.com --mark-read
