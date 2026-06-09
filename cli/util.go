@@ -10,7 +10,21 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 )
+
+// parseOptionalDate parses a "yyyy-mm-dd" date string into a *time.Time,
+// returning nil (no error) for an empty string.
+func parseOptionalDate(value string) (*time.Time, error) {
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := util.DateFromString(value)
+	if err != nil {
+		return nil, err
+	}
+	return util.TimePtr(parsed), nil
+}
 
 func getAccount(identifier string) (imaputils.Account, error) {
 	accounts, err := parseAccounts()

@@ -193,6 +193,69 @@ func TestSearchMessagesSenders(t *testing.T) {
 	}
 }
 
+func TestCountMessagesBySender(t *testing.T) {
+	addr := func(local string) []*imap.Address {
+		return []*imap.Address{{MailboxName: local, HostName: "example.com"}}
+	}
+	m1 := &imap.Message{Uid: 1, Envelope: &imap.Envelope{From: addr("alice")}}
+	m2 := &imap.Message{Uid: 2, Envelope: &imap.Envelope{From: addr("bob")}}
+	m3 := &imap.Message{Uid: 3, Envelope: &imap.Envelope{From: addr("alice")}}
+	m4 := &imap.Message{Uid: 4, Envelope: &imap.Envelope{From: addr("alice")}}
+	m5 := &imap.Message{Uid: 5, Envelope: nil}                       // no envelope, skipped
+	m6 := &imap.Message{Uid: 6, Envelope: &imap.Envelope{From: nil}} // no sender, skipped
+
+	newMock := func(fetchResult []*imap.Message) (*MockIMAPClientSenders, *MockIMAPDialerSenders) {
+		client := &MockIMAPClientSenders{}
+		dialer := &MockIMAPDialerSenders{}
+		dialer.On("Dial", mock.Anything).Return(client, nil)
+		client.On("Capability").Return(map[string]bool{"IMAP4rev1": true}, nil)
+		client.On("UidFetch", mock.Anything, mock.Anything, mock.Anything).Return(fetchResult, nil)
+		client.On("Logout").Return(nil)
+		return client, dialer
+	}
+
+	t.Run("counts senders at or above threshold, sorted descending", func(t *testing.T) {
+		client, dialer := newMock([]*imap.Message{m1, m2, m3, m4, m5, m6})
+		client.On("UidSearch", mock.Anything).Return([]uint32{1, 2, 3, 4, 5, 6}, nil)
+
+		data, err := CountMessagesBySender(dialer, Account{}, "INBOX", 1, nil, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, [][]string{
+			{"Sender", "Number of Messages"},
+			{"alice@example.com", "3"},
+			{"bob@example.com", "1"},
+		}, data)
+	})
+
+	t.Run("threshold excludes low-count senders", func(t *testing.T) {
+		client, dialer := newMock([]*imap.Message{m1, m2, m3, m4, m5, m6})
+		client.On("UidSearch", mock.Anything).Return([]uint32{1, 2, 3, 4, 5, 6}, nil)
+
+		data, err := CountMessagesBySender(dialer, Account{}, "INBOX", 2, nil, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, [][]string{
+			{"Sender", "Number of Messages"},
+			{"alice@example.com", "3"},
+		}, data)
+	})
+
+	t.Run("date range is passed to the server search", func(t *testing.T) {
+		client, dialer := newMock([]*imap.Message{m1, m3, m4})
+		start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		end := time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC)
+		client.On("UidSearch", mock.MatchedBy(func(criteria *imap.SearchCriteria) bool {
+			return criteria.Since.Equal(start) && criteria.Before.Equal(end.AddDate(0, 0, 1))
+		})).Return([]uint32{1, 3, 4}, nil)
+
+		data, err := CountMessagesBySender(dialer, Account{}, "INBOX", 1, &start, &end)
+		assert.NoError(t, err)
+		assert.Equal(t, [][]string{
+			{"Sender", "Number of Messages"},
+			{"alice@example.com", "3"},
+		}, data)
+	})
+}
+
 // Helper functions
 func timePtr(t time.Time) *time.Time {
 	return &t

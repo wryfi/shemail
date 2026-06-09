@@ -205,14 +205,28 @@ func SearchFolder() *cobra.Command {
 
 // CountMessagesBySender generates a command to list all the senders represented mailbox by how many messages they sent
 func CountMessagesBySender() *cobra.Command {
-	var threshold int
+	var (
+		threshold int
+		after     string
+		before    string
+	)
 	cmd := &cobra.Command{
 		Use:   "senders <folder>",
 		Short: "print a list of senders in the configured mailbox",
 		Args:  validateFolderArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imaputils.Account)
-			data, err := imaputils.CountMessagesBySender(imaputils.SheDialer, account, args[0], threshold)
+
+			startDate, err := parseOptionalDate(after)
+			if err != nil {
+				return fmt.Errorf("error parsing after date %s: %w", after, err)
+			}
+			endDate, err := parseOptionalDate(before)
+			if err != nil {
+				return fmt.Errorf("error parsing before date %s: %w", before, err)
+			}
+
+			data, err := imaputils.CountMessagesBySender(imaputils.SheDialer, account, args[0], threshold, startDate, endDate)
 			if err != nil {
 				return fmt.Errorf("error counting messages: %w", err)
 			}
@@ -222,6 +236,8 @@ func CountMessagesBySender() *cobra.Command {
 		},
 	}
 	cmd.Flags().IntVarP(&threshold, "threshold", "t", 1, "only show senders with at least this many messages")
+	cmd.Flags().StringVarP(&after, "after", "a", "", "only count messages received after date (format: `2006-01-02`)")
+	cmd.Flags().StringVarP(&before, "before", "b", "", "only count messages received before date (format: `2006-01-02`)")
 	return cmd
 }
 

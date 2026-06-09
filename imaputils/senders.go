@@ -3,10 +3,9 @@ package imaputils
 import (
 	"cmp"
 	"fmt"
-	"github.com/emersion/go-imap"
 	"slices"
 	"strconv"
-	"sync"
+	"time"
 )
 
 // SenderCount holds information about a sender and the number of messages sent.
@@ -15,55 +14,29 @@ type SenderCount struct {
 	MessageCount int
 }
 
-// CountMessagesBySender counts the messages from a given sender with improved performance.
-func CountMessagesBySender(dialer IMAPDialer, account Account, folder string, threshold int) ([][]string, error) {
-	// Only fetch the fields we need for counting by sender
-	fields := MessageFields{
-		Envelope: true,
-		Headers:  []string{"From"},
-	}
-
-	messages, err := FetchMessages(dialer, account, folder, fields)
+// CountMessagesBySender counts messages by sender in the given folder,
+// optionally restricted to a delivery-date range (startDate/endDate, either may
+// be nil). Only senders with at least threshold messages are returned, sorted
+// by descending count. Date filtering uses the same server-side INTERNALDATE
+// search as the find command.
+func CountMessagesBySender(dialer IMAPDialer, account Account, folder string, threshold int, startDate, endDate *time.Time) ([][]string, error) {
+	criteria := BuildSearchCriteria(SearchOptions{StartDate: startDate, EndDate: endDate})
+	messages, err := SearchMessages(dialer, account, folder, criteria)
 	if err != nil {
-		return nil, fmt.Errorf("error fetching messages from folder %s: %w", folder, err)
+		return nil, fmt.Errorf("error searching folder %s: %w", folder, err)
 	}
 
-	// Pre-allocate map with estimated capacity
-	senderCounts := make(map[string]int, len(messages)/2) // Assuming average of 2 messages per sender
-
-	// Process messages in parallel using worker pool
-	const numWorkers = 4
-	messageChan := make(chan *imap.Message, numWorkers)
-	var wg sync.WaitGroup
-	var mu sync.Mutex // Protects senderCounts
-
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for msg := range messageChan {
-				if msg.Envelope == nil || len(msg.Envelope.From) == 0 {
-					continue
-				}
-
-				sender := FormatAddress(msg.Envelope.From[0])
-
-				if sender != "" {
-					mu.Lock()
-					senderCounts[sender]++
-					mu.Unlock()
-				}
-			}
-		}()
+	senderCounts := make(map[string]int, len(messages)/2)
+	for _, message := range messages {
+		if message.Envelope == nil || len(message.Envelope.From) == 0 {
+			continue
+		}
+		sender := FormatAddress(message.Envelope.From[0])
+		if sender != "" {
+			senderCounts[sender]++
+		}
 	}
-	// Send messages to workers
-	for _, msg := range messages {
-		messageChan <- msg
-	}
-	close(messageChan)
-	wg.Wait()
 
-	// Pre-allocate slice with exact capacity
 	senderCountList := make([]SenderCount, 0, len(senderCounts))
 	for sender, count := range senderCounts {
 		if count >= threshold {

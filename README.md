@@ -210,6 +210,9 @@ See who is filling up your inbox (senders with at least 25 messages):
 
 ```sh
 shemail senders INBOX -t 25
+
+# restrict the tally to a date range (by delivery date)
+shemail senders INBOX --after 2026-01-01 --before 2026-03-31
 ```
 
 Search a folder by sender, subject, date range, or read state:
