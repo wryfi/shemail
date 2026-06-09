@@ -259,6 +259,43 @@ func CountMessagesBySender() *cobra.Command {
 	return cmd
 }
 
+// EmptyTrash generates a command to permanently delete all messages in the
+// account's trash folder.
+func EmptyTrash() *cobra.Command {
+	var assumeYes bool
+	cmd := &cobra.Command{
+		Use:   "empty-trash",
+		Short: "permanently delete all messages in the trash folder",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			account := cmd.Context().Value("account").(imaputils.Account)
+
+			folder, err := imaputils.FindTrashFolder(imaputils.SheDialer, account)
+			if err != nil {
+				return fmt.Errorf("failed to find trash folder: %w", err)
+			}
+
+			count, err := imaputils.FolderMessageCount(imaputils.SheDialer, account, folder)
+			if err != nil {
+				return fmt.Errorf("failed to count messages in %s: %w", folder, err)
+			}
+
+			if !assumeYes && !util.GetConfirmation(fmt.Sprintf("really permanently delete all %d messages in %q?", count, folder)) {
+				fmt.Println("operation cancelled")
+				return nil
+			}
+
+			deleted, err := imaputils.EmptyFolder(imaputils.SheDialer, account, folder)
+			if err != nil {
+				return fmt.Errorf("failed to empty %s: %w", folder, err)
+			}
+			fmt.Printf("permanently deleted %d messages from %s\n", deleted, folder)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVarP(&assumeYes, "yes", "y", false, "skip the confirmation prompt")
+	return cmd
+}
+
 // CreateFolder generates a command to recursively create the requested imap folder in account
 func CreateFolder() *cobra.Command {
 	cmd := &cobra.Command{

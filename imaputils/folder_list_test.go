@@ -222,6 +222,22 @@ func TestListFoldersWithStatus(t *testing.T) {
 	assert.Equal(t, 1, mockClient.logoutCalls, "Logout should be called exactly once")
 }
 
+func TestFolderMessageCount(t *testing.T) {
+	mockClient := &MockIMAPClientListFolders{
+		statusFunc: func(name string, items []imap.StatusItem) (*imap.MailboxStatus, error) {
+			assert.Equal(t, "Trash", name)
+			assert.Equal(t, []imap.StatusItem{imap.StatusMessages}, items)
+			return &imap.MailboxStatus{Messages: 42}, nil
+		},
+	}
+	dialer := &MockDialerListFolders{client: mockClient}
+
+	count, err := FolderMessageCount(dialer, Account{}, "Trash")
+	assert.NoError(t, err)
+	assert.Equal(t, 42, count)
+	assert.Equal(t, 1, mockClient.logoutCalls, "Logout should be called exactly once")
+}
+
 func TestListFoldersWithStatusWithoutDates(t *testing.T) {
 	mockClient := &MockIMAPClientListFolders{
 		listFunc: func(ref string, name string, ch chan *imap.MailboxInfo) error {

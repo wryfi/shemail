@@ -21,6 +21,22 @@ type FolderStatus struct {
 	Newest time.Time
 }
 
+// FolderMessageCount returns the number of messages in the given folder via
+// IMAP STATUS, without selecting or fetching anything.
+func FolderMessageCount(dialer IMAPDialer, account Account, folder string) (int, error) {
+	imapClient, err := getImapClient(dialer, account)
+	if err != nil {
+		return 0, fmt.Errorf("failed to initialize imap client: %w", err)
+	}
+	defer imapClient.Logout()
+
+	status, err := imapClient.Status(folder, []imap.StatusItem{imap.StatusMessages})
+	if err != nil {
+		return 0, fmt.Errorf("failed to get status for folder %s: %w", folder, err)
+	}
+	return int(status.Messages), nil
+}
+
 // ListFolders lists all folders in the IMAP account
 func ListFolders(dialer IMAPDialer, account Account) ([]string, error) {
 	imapClient, err := getImapClient(dialer, account)

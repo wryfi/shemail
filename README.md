@@ -183,6 +183,7 @@ Usage:
 Available Commands:
   completion  Generate the autocompletion script for the specified shell
   config      Print shemail configuration
+  empty-trash permanently delete all messages in the trash folder
   find        search the specified folder for messages
   help        Help about any command
   ls          print a list of folders in the configured mailbox
@@ -263,6 +264,9 @@ shemail find INBOX --subject "sale" --read --delete
 
 # permanently expunge everything in the trash, bypassing the trash folder
 shemail find "[Gmail]/Trash" --delete --purge
+
+# or just empty the trash folder entirely
+shemail empty-trash
 
 # mark everything from a noisy sender as read
 shemail find INBOX --from notifications@github.com --mark-read

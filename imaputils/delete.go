@@ -34,7 +34,7 @@ func DeleteMessages(dialer IMAPDialer, account Account, messages []*imap.Message
 
 // moveToTrash moves a list of messages to a trash/deleted folder
 func moveToTrash(dialer IMAPDialer, account Account, folder string, messages []*imap.Message) error {
-	trashFolder, err := findTrashFolder(dialer, account)
+	trashFolder, err := FindTrashFolder(dialer, account)
 	if err != nil {
 		return fmt.Errorf("failed to find trash folder: %w", err)
 	}
@@ -44,8 +44,9 @@ func moveToTrash(dialer IMAPDialer, account Account, folder string, messages []*
 	return nil
 }
 
-// findTrashFolder searches account folders for common trash folder names
-func findTrashFolder(dialer IMAPDialer, account Account) (string, error) {
+// FindTrashFolder searches account folders for common trash folder names,
+// falling back to "Deleted Items" if none match.
+func FindTrashFolder(dialer IMAPDialer, account Account) (string, error) {
 	mailboxes, err := ListFolders(dialer, account)
 	if err != nil {
 		return "", fmt.Errorf("failed to list folders: %w", err)
