@@ -7,12 +7,15 @@ import (
 	"github.com/emersion/go-imap/client"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 // MockIMAPClientListFolders implements IMAPClient interface
 type MockIMAPClientListFolders struct {
 	listFunc    func(ref string, name string, ch chan *imap.MailboxInfo) error
 	statusFunc  func(name string, items []imap.StatusItem) (*imap.MailboxStatus, error)
+	selectFunc  func(name string, readOnly bool) (*imap.MailboxStatus, error)
+	fetchFunc   func(seqset *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error
 	logoutCalls int
 }
 
@@ -30,11 +33,18 @@ func (m *MockIMAPClientListFolders) Capability() (map[string]bool, error) { retu
 func (m *MockIMAPClientListFolders) Create(name string) error             { return nil }
 func (m *MockIMAPClientListFolders) Expunge(ch chan uint32) error         { return nil }
 func (m *MockIMAPClientListFolders) Fetch(seqset *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error {
+	if m.fetchFunc != nil {
+		return m.fetchFunc(seqset, items, ch)
+	}
+	close(ch)
 	return nil
 }
 func (m *MockIMAPClientListFolders) GetClient() *client.Client                    { return nil }
 func (m *MockIMAPClientListFolders) Login(username string, password string) error { return nil }
 func (m *MockIMAPClientListFolders) Select(name string, readOnly bool) (*imap.MailboxStatus, error) {
+	if m.selectFunc != nil {
+		return m.selectFunc(name, readOnly)
+	}
 	return nil, nil
 }
 func (m *MockIMAPClientListFolders) Status(name string, items []imap.StatusItem) (*imap.MailboxStatus, error) {
@@ -157,6 +167,18 @@ func TestListFolders(t *testing.T) {
 }
 
 func TestListFoldersWithStatus(t *testing.T) {
+	inboxOldest := time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC)
+	inboxNewest := time.Date(2026, 3, 10, 9, 0, 0, 0, time.UTC)
+	inboxMiddle := time.Date(2026, 2, 1, 9, 0, 0, 0, time.UTC)
+	archiveOldest := time.Date(2019, 6, 15, 9, 0, 0, 0, time.UTC)
+	archiveNewest := time.Date(2021, 3, 20, 9, 0, 0, 0, time.UTC)
+
+	dates := map[string][]time.Time{
+		"INBOX":   {inboxNewest, inboxOldest, inboxMiddle}, // out of order on purpose
+		"Archive": {archiveNewest, archiveOldest},
+	}
+
+	var selected string
 	mockClient := &MockIMAPClientListFolders{
 		listFunc: func(ref string, name string, ch chan *imap.MailboxInfo) error {
 			go func() {
@@ -176,15 +198,58 @@ func TestListFoldersWithStatus(t *testing.T) {
 			}
 			return nil, errors.New("unexpected status call for " + name)
 		},
+		selectFunc: func(name string, readOnly bool) (*imap.MailboxStatus, error) {
+			selected = name
+			return &imap.MailboxStatus{Messages: uint32(len(dates[name]))}, nil
+		},
+		fetchFunc: func(seqset *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error {
+			for _, date := range dates[selected] {
+				ch <- &imap.Message{InternalDate: date}
+			}
+			close(ch)
+			return nil
+		},
 	}
 	dialer := &MockDialerListFolders{client: mockClient}
 
-	folders, err := ListFoldersWithStatus(dialer, Account{})
+	folders, err := ListFoldersWithStatus(dialer, Account{}, true)
 	assert.NoError(t, err)
 	assert.Equal(t, []FolderStatus{
-		{Name: "INBOX", Messages: 10, Unseen: 3, Selectable: true},
+		{Name: "INBOX", Messages: 10, Unseen: 3, Selectable: true, Oldest: inboxOldest, Newest: inboxNewest},
 		{Name: "[Gmail]", Selectable: false},
-		{Name: "Archive", Messages: 100, Unseen: 0, Selectable: true},
+		{Name: "Archive", Messages: 100, Unseen: 0, Selectable: true, Oldest: archiveOldest, Newest: archiveNewest},
 	}, folders)
 	assert.Equal(t, 1, mockClient.logoutCalls, "Logout should be called exactly once")
+}
+
+func TestListFoldersWithStatusWithoutDates(t *testing.T) {
+	mockClient := &MockIMAPClientListFolders{
+		listFunc: func(ref string, name string, ch chan *imap.MailboxInfo) error {
+			go func() {
+				ch <- &imap.MailboxInfo{Name: "INBOX"}
+				close(ch)
+			}()
+			return nil
+		},
+		statusFunc: func(name string, items []imap.StatusItem) (*imap.MailboxStatus, error) {
+			return &imap.MailboxStatus{Messages: 5000, Unseen: 12}, nil
+		},
+		selectFunc: func(name string, readOnly bool) (*imap.MailboxStatus, error) {
+			t.Errorf("Select should not be called when dates are disabled")
+			return nil, nil
+		},
+		fetchFunc: func(seqset *imap.SeqSet, items []imap.FetchItem, ch chan *imap.Message) error {
+			t.Errorf("Fetch should not be called when dates are disabled")
+			close(ch)
+			return nil
+		},
+	}
+	dialer := &MockDialerListFolders{client: mockClient}
+
+	folders, err := ListFoldersWithStatus(dialer, Account{}, false)
+	assert.NoError(t, err)
+	// Counts are present; date range is left zero (no scan performed).
+	assert.Equal(t, []FolderStatus{
+		{Name: "INBOX", Messages: 5000, Unseen: 12, Selectable: true},
+	}, folders)
 }

@@ -200,11 +200,16 @@ Use "shemail [command] --help" for more information about a command.
 ## Examples
 
 List folders with per-folder message and unread counts (triage which folders
-are bloated):
+are bloated). Add `--dates` to also show each folder's message date range:
 
 ```sh
 shemail ls -l
+shemail ls --dates   # counts plus oldest/newest message date per folder
 ```
+
+> Note: `--dates` reads the delivery date of every message to compute each
+> folder's oldest/newest range, so it is noticeably slower than `ls -l` on large
+> mailboxes (hence it is opt-in).
 
 See who is filling up your inbox (senders with at least 25 messages):
 

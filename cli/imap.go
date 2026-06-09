@@ -10,7 +10,10 @@ import (
 
 // ListFolders generates a command to print a list of imap folders on terminal
 func ListFolders() *cobra.Command {
-	var long bool
+	var (
+		long  bool
+		dates bool
+	)
 	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"folders"},
@@ -18,12 +21,12 @@ func ListFolders() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account := cmd.Context().Value("account").(imaputils.Account)
 
-			if long {
-				folders, err := imaputils.ListFoldersWithStatus(imaputils.SheDialer, account)
+			if long || dates {
+				folders, err := imaputils.ListFoldersWithStatus(imaputils.SheDialer, account, dates)
 				if err != nil {
 					return fmt.Errorf("Error listing folders: %w", err)
 				}
-				util.TabulateFolders(folders).Render()
+				util.TabulateFolders(folders, dates).Render()
 				return nil
 			}
 
@@ -39,6 +42,7 @@ func ListFolders() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVarP(&long, "long", "l", false, "show message and unread counts per folder")
+	cmd.Flags().BoolVar(&dates, "dates", false, "also show each folder's message date range (slower; implies -l)")
 	return cmd
 }
 

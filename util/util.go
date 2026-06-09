@@ -194,13 +194,21 @@ func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
 }
 
 // TabulateFolders renders a list of folders with their message and unread
-// counts. Non-selectable container folders show "-" for their counts.
-func TabulateFolders(folders []imaputils.FolderStatus) *tablewriter.Table {
+// counts. When withDates is true it also includes the date range of each
+// folder's messages. Non-selectable container folders (and empty folders, for
+// dates) show "-".
+func TabulateFolders(folders []imaputils.FolderStatus, withDates bool) *tablewriter.Table {
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Folder", "Messages", "Unread"})
+	header := []string{"Folder", "Messages", "Unread"}
+	alignment := []int{tablewriter.ALIGN_LEFT, tablewriter.ALIGN_RIGHT, tablewriter.ALIGN_RIGHT}
+	if withDates {
+		header = append(header, "Oldest", "Newest")
+		alignment = append(alignment, tablewriter.ALIGN_LEFT, tablewriter.ALIGN_LEFT)
+	}
+	table.SetHeader(header)
 	table.SetBorder(false)
 	table.SetAutoWrapText(false)
-	table.SetColumnAlignment([]int{tablewriter.ALIGN_LEFT, tablewriter.ALIGN_RIGHT, tablewriter.ALIGN_RIGHT})
+	table.SetColumnAlignment(alignment)
 
 	for _, folder := range folders {
 		messages := "-"
@@ -209,10 +217,22 @@ func TabulateFolders(folders []imaputils.FolderStatus) *tablewriter.Table {
 			messages = strconv.Itoa(int(folder.Messages))
 			unread = strconv.Itoa(int(folder.Unseen))
 		}
-		table.Append([]string{folder.Name, messages, unread})
+		row := []string{folder.Name, messages, unread}
+		if withDates {
+			row = append(row, formatDate(folder.Oldest), formatDate(folder.Newest))
+		}
+		table.Append(row)
 	}
 
 	return table
+}
+
+// formatDate renders a date as YYYY-MM-DD, or "-" for the zero value.
+func formatDate(date time.Time) string {
+	if date.IsZero() {
+		return "-"
+	}
+	return date.Format("2006-01-02")
 }
 
 // TabulateSenders creates a table from the given data and renders it to the terminal
