@@ -72,6 +72,7 @@ func SearchFolder() *cobra.Command {
 		reverse      bool
 		copyTo       string
 		countOnly    bool
+		assumeYes    bool
 	)
 	cmd := &cobra.Command{
 		Use:     "find <folder>",
@@ -124,8 +125,13 @@ func SearchFolder() *cobra.Command {
 				return fmt.Errorf("error tabulating messages: %w", err)
 			}
 
+			// confirm honors --yes for non-interactive use (e.g. cron).
+			confirm := func(prompt string) bool {
+				return assumeYes || util.GetConfirmation(prompt)
+			}
+
 			if moveTo != "" {
-				if util.GetConfirmation(fmt.Sprintf("really move %d messages to %s?", len(messages), moveTo)) {
+				if confirm(fmt.Sprintf("really move %d messages to %s?", len(messages), moveTo)) {
 					err := imaputils.MoveMessages(imaputils.SheDialer, account, messages, args[0], moveTo, 100)
 					if err != nil {
 						return fmt.Errorf("failed to move messages to %s: %w", moveTo, err)
@@ -136,7 +142,7 @@ func SearchFolder() *cobra.Command {
 			}
 
 			if copyTo != "" {
-				if util.GetConfirmation(fmt.Sprintf("really copy %d messages to %s?", len(messages), copyTo)) {
+				if confirm(fmt.Sprintf("really copy %d messages to %s?", len(messages), copyTo)) {
 					if err := imaputils.CopyMessages(imaputils.SheDialer, account, messages, args[0], copyTo); err != nil {
 						return fmt.Errorf("failed to copy messages to %s: %w", copyTo, err)
 					}
@@ -150,7 +156,7 @@ func SearchFolder() *cobra.Command {
 				if markUnread {
 					state = "unread"
 				}
-				if util.GetConfirmation(fmt.Sprintf("really mark %d messages as %s?", len(messages), state)) {
+				if confirm(fmt.Sprintf("really mark %d messages as %s?", len(messages), state)) {
 					if err := imaputils.MarkMessages(imaputils.SheDialer, account, messages, args[0], markRead); err != nil {
 						return fmt.Errorf("failed to mark messages as %s: %w", state, err)
 					}
@@ -167,7 +173,7 @@ func SearchFolder() *cobra.Command {
 				if account.Purge {
 					action = "permanently delete"
 				}
-				if util.GetConfirmation(fmt.Sprintf("really %s %d messages from %s?", action, len(messages), args[0])) {
+				if confirm(fmt.Sprintf("really %s %d messages from %s?", action, len(messages), args[0])) {
 					err := imaputils.DeleteMessages(imaputils.SheDialer, account, messages, args[0])
 					if err != nil {
 						return fmt.Errorf("failed to delete messages from %s: %w", args[0], err)
@@ -203,6 +209,7 @@ func SearchFolder() *cobra.Command {
 	cmd.Flags().StringVar(&sortBy, "sort", "date", "sort by: date, subject, from, to, size, unread")
 	cmd.Flags().BoolVarP(&reverse, "reverse", "R", false, "reverse the sort order")
 	cmd.Flags().BoolVar(&countOnly, "count", false, "print only the number of matching messages")
+	cmd.Flags().BoolVarP(&assumeYes, "yes", "y", false, "skip confirmation prompts (assume yes)")
 	// --read and --unread are contradictory: requiring both Seen and not-Seen
 	// matches nothing. Reject the combination up front instead of silently
 	// returning zero results.

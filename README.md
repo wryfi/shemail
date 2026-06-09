@@ -302,6 +302,8 @@ A few notes:
   messages (no move or delete).
 - `--copy <folder>` copies the matched messages to another folder (creating it
   if needed), leaving the originals in place.
+- `--yes`/`-y` skips the confirmation prompt for `--move`/`--copy`/`--delete`/
+  `--mark-*`, for non-interactive use (e.g. cron). Use with care.
 - In `find` output, the leading `●` marks unread messages; read messages have a
   blank in that column.
 - By default `find` combines criteria with AND; pass `--or` to match any
