@@ -171,9 +171,17 @@ func UnreadMarker(flags []string) string {
 var MessageColumns = []string{"Date", "Size", "From", "To", "Subject"}
 
 const (
+	dateColumnWidth    = 29 // "2006-01-02 15:04:05 -0700 MST"
+	sizeColumnWidth    = 6
 	fromColumnWidth    = 30
+	toColumnWidth      = 30
 	subjectColumnWidth = 60
 )
+
+// messageColumnWidths are the display widths for MessageColumns, in order. The
+// picker fixes its columns to these so they don't jump as rows scroll; the
+// static renderer auto-sizes within them since cells are pre-truncated here.
+var messageColumnWidths = []int{dateColumnWidth, sizeColumnWidth, fromColumnWidth, toColumnWidth, subjectColumnWidth}
 
 // MessageRow is one formatted message: its cells (aligned 1:1 with
 // MessageColumns) and whether the message is unread, so renderers can style
@@ -213,7 +221,7 @@ func FormatMessageRows(messages []*imap.Message) ([]MessageRow, error) {
 			subject = TruncateString(message.Envelope.Subject, subjectColumnWidth)
 		}
 		from := TruncateString(imaputils.FormatAddressesCSV(message.Envelope.From), fromColumnWidth)
-		to := imaputils.FormatAddressesCSV(message.Envelope.To)
+		to := TruncateString(imaputils.FormatAddressesCSV(message.Envelope.To), toColumnWidth)
 		rows = append(rows, MessageRow{
 			Cells:  []string{date, size, from, to, subject},
 			Unread: unread,
