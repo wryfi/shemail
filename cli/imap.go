@@ -2,10 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/emersion/go-imap"
 	"github.com/spf13/cobra"
 	"github.com/wryfi/shemail/imaputils"
 	"github.com/wryfi/shemail/util"
+	"golang.org/x/term"
 )
 
 // ListFolders generates a command to print a list of imap folders on terminal
@@ -119,67 +122,69 @@ func SearchFolder() *cobra.Command {
 				return nil
 			}
 
-			rendered, err := util.RenderMessages(messages)
-			if err != nil {
-				return fmt.Errorf("error rendering messages: %w", err)
-			}
-			fmt.Println(rendered)
-
-			// confirm honors --yes for non-interactive use (e.g. cron).
-			confirm := func(prompt string) bool {
-				return assumeYes || util.GetConfirmation(prompt)
-			}
-
-			if moveTo != "" {
-				if confirm(fmt.Sprintf("really move %d messages to %s?", len(messages), moveTo)) {
-					err := imaputils.MoveMessages(imaputils.SheDialer, account, messages, args[0], moveTo, 100)
-					if err != nil {
-						return fmt.Errorf("failed to move messages to %s: %w", moveTo, err)
-					}
-				} else {
-					fmt.Println("operation cancelled")
-				}
-			}
-
-			if copyTo != "" {
-				if confirm(fmt.Sprintf("really copy %d messages to %s?", len(messages), copyTo)) {
-					if err := imaputils.CopyMessages(imaputils.SheDialer, account, messages, args[0], copyTo); err != nil {
-						return fmt.Errorf("failed to copy messages to %s: %w", copyTo, err)
-					}
-				} else {
-					fmt.Println("operation cancelled")
-				}
-			}
-
-			if markRead || markUnread {
-				state := "read"
-				if markUnread {
-					state = "unread"
-				}
-				if confirm(fmt.Sprintf("really mark %d messages as %s?", len(messages), state)) {
-					if err := imaputils.MarkMessages(imaputils.SheDialer, account, messages, args[0], markRead); err != nil {
-						return fmt.Errorf("failed to mark messages as %s: %w", state, err)
-					}
-				} else {
-					fmt.Println("operation cancelled")
-				}
-			}
-
-			if deleteFrom {
-				// --purge overrides the account setting for this run, expunging
-				// in place instead of moving to a trash folder.
-				account.Purge = account.Purge || purge
-				action := "delete"
+			// Determine which action was requested (the flags are mutually
+			// exclusive) and label it for the picker. --purge upgrades delete to
+			// a permanent expunge for this run.
+			account.Purge = account.Purge || purge
+			actionLabel := ""
+			switch {
+			case moveTo != "":
+				actionLabel = "move to " + moveTo
+			case copyTo != "":
+				actionLabel = "copy to " + copyTo
+			case markRead:
+				actionLabel = "mark as read"
+			case markUnread:
+				actionLabel = "mark as unread"
+			case deleteFrom:
+				actionLabel = "delete"
 				if account.Purge {
-					action = "permanently delete"
+					actionLabel = "permanently delete"
 				}
-				if confirm(fmt.Sprintf("really %s %d messages from %s?", action, len(messages), args[0])) {
-					err := imaputils.DeleteMessages(imaputils.SheDialer, account, messages, args[0])
-					if err != nil {
-						return fmt.Errorf("failed to delete messages from %s: %w", args[0], err)
+			}
+
+			// A bare listing, or any action with --yes, prints the static table.
+			// The interactive picker renders its own table, so skip the static
+			// print when it will run.
+			if actionLabel == "" || assumeYes {
+				rendered, err := util.RenderMessages(messages)
+				if err != nil {
+					return fmt.Errorf("error rendering messages: %w", err)
+				}
+				fmt.Println(rendered)
+			}
+			if actionLabel == "" {
+				return nil
+			}
+
+			targets, proceed, err := resolveActionTargets(messages, actionLabel, assumeYes)
+			if err != nil {
+				return err
+			}
+			if !proceed {
+				return nil
+			}
+
+			switch {
+			case moveTo != "":
+				if err := imaputils.MoveMessages(imaputils.SheDialer, account, targets, args[0], moveTo, 100); err != nil {
+					return fmt.Errorf("failed to move messages to %s: %w", moveTo, err)
+				}
+			case copyTo != "":
+				if err := imaputils.CopyMessages(imaputils.SheDialer, account, targets, args[0], copyTo); err != nil {
+					return fmt.Errorf("failed to copy messages to %s: %w", copyTo, err)
+				}
+			case markRead || markUnread:
+				if err := imaputils.MarkMessages(imaputils.SheDialer, account, targets, args[0], markRead); err != nil {
+					state := "read"
+					if markUnread {
+						state = "unread"
 					}
-				} else {
-					fmt.Println("operation cancelled")
+					return fmt.Errorf("failed to mark messages as %s: %w", state, err)
+				}
+			case deleteFrom:
+				if err := imaputils.DeleteMessages(imaputils.SheDialer, account, targets, args[0]); err != nil {
+					return fmt.Errorf("failed to delete messages from %s: %w", args[0], err)
 				}
 			}
 
@@ -219,6 +224,39 @@ func SearchFolder() *cobra.Command {
 	// ordering; run separate passes if you want more than one.
 	cmd.MarkFlagsMutuallyExclusive("move", "copy", "delete", "mark-read", "mark-unread", "count")
 	return cmd
+}
+
+// isInteractive reports whether stdin is a terminal, i.e. whether we can prompt
+// the user (run the picker) rather than refusing or hanging.
+func isInteractive() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
+// resolveActionTargets decides which messages an action applies to. With --yes
+// it acts on all of them. Otherwise, at a terminal it launches the picker so the
+// user can deselect messages before acting; in a non-interactive session it
+// refuses rather than act blindly. proceed is false when the caller should stop
+// without acting (the user cancelled, selected nothing, or an error occurred).
+func resolveActionTargets(messages []*imap.Message, actionLabel string, assumeYes bool) (targets []*imap.Message, proceed bool, err error) {
+	if assumeYes {
+		return messages, true, nil
+	}
+	if !isInteractive() {
+		return nil, false, fmt.Errorf("refusing to %s %d messages without --yes in a non-interactive session", actionLabel, len(messages))
+	}
+	kept, committed, err := util.SelectMessages(messages, actionLabel)
+	if err != nil {
+		return nil, false, err
+	}
+	if !committed {
+		fmt.Println("operation cancelled")
+		return nil, false, nil
+	}
+	if len(kept) == 0 {
+		fmt.Println("no messages selected; nothing to do")
+		return nil, false, nil
+	}
+	return kept, true, nil
 }
 
 // CountMessagesBySender generates a command to list all the senders represented mailbox by how many messages they sent
