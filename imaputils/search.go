@@ -103,8 +103,18 @@ func fetchMessagesByUID(client IMAPClient, uids []uint32) ([]*imap.Message, erro
 		done <- client.UidFetch(seqSet, items, messages)
 	}()
 
+	// go-imap (and some servers, e.g. Dovecot with CONDSTORE/QRESYNC) can
+	// deliver more than one FETCH response per message. Collapse repeats by UID,
+	// merging any fields a later response fills in, so callers see each message
+	// exactly once without losing data.
+	seen := make(map[uint32]*imap.Message, len(uids))
 	var result []*imap.Message
 	for msg := range messages {
+		if existing, ok := seen[msg.Uid]; ok {
+			mergeMessage(existing, msg)
+			continue
+		}
+		seen[msg.Uid] = msg
 		result = append(result, msg)
 	}
 
@@ -113,6 +123,23 @@ func fetchMessagesByUID(client IMAPClient, uids []uint32) ([]*imap.Message, erro
 	}
 
 	return result, nil
+}
+
+// mergeMessage fills zero-valued fields of dst from src, combining multiple
+// FETCH responses for the same message.
+func mergeMessage(dst, src *imap.Message) {
+	if dst.Envelope == nil {
+		dst.Envelope = src.Envelope
+	}
+	if dst.InternalDate.IsZero() {
+		dst.InternalDate = src.InternalDate
+	}
+	if dst.Size == 0 {
+		dst.Size = src.Size
+	}
+	if len(dst.Flags) == 0 {
+		dst.Flags = src.Flags
+	}
 }
 
 // getFetchItems returns the list of items to fetch for each message

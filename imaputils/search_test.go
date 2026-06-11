@@ -173,6 +173,37 @@ func TestSearchMessages(t *testing.T) {
 	}
 }
 
+func TestSearchMessagesDeduplicatesFetchResults(t *testing.T) {
+	client := &MockIMAPClientSearch{}
+	dialer := &MockIMAPDialerSearch{}
+	dialer.On("Dial", mock.Anything).Return(client, nil)
+	client.On("Capability").Return(map[string]bool{"IMAP4rev1": true}, nil)
+	client.On("UidSearch", mock.Anything).Return([]uint32{1, 2}, nil)
+
+	// go-imap (and some servers, e.g. Dovecot) can deliver more than one FETCH
+	// response per message. Here UID 1 arrives twice with its data split across
+	// the responses; the merged result must keep both the envelope and flags.
+	client.On("UidFetch", mock.Anything, mock.Anything, mock.Anything).Return([]*imap.Message{
+		{Uid: 1, Envelope: &imap.Envelope{Subject: "one"}},
+		{Uid: 1, Flags: []string{imap.SeenFlag}},
+		{Uid: 2, Envelope: &imap.Envelope{Subject: "two"}},
+		{Uid: 2, Envelope: &imap.Envelope{Subject: "two"}},
+	}, nil)
+	client.On("Logout").Return(nil)
+
+	messages, err := SearchMessages(dialer, Account{}, "INBOX", &imap.SearchCriteria{})
+	assert.NoError(t, err)
+	assert.Len(t, messages, 2, "each message should appear exactly once")
+
+	byUID := map[uint32]*imap.Message{}
+	for _, message := range messages {
+		byUID[message.Uid] = message
+	}
+	assert.Equal(t, "one", byUID[1].Envelope.Subject)
+	assert.Equal(t, []string{imap.SeenFlag}, byUID[1].Flags, "flags from the second response must be merged in")
+	assert.Equal(t, "two", byUID[2].Envelope.Subject)
+}
+
 func TestSearchOptions_Serialize(t *testing.T) {
 	now := time.Now()
 	seen := true
