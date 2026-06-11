@@ -2,7 +2,9 @@ package util
 
 import (
 	"github.com/emersion/go-imap"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"strings"
 	"testing"
 	"time"
 )
@@ -194,6 +196,103 @@ func TestUnreadMarker(t *testing.T) {
 	assert.Equal(t, "", UnreadMarker([]string{"\\Answered", imap.SeenFlag}), "seen among others")
 	assert.Equal(t, "●", UnreadMarker(nil), "no flags = unread")
 	assert.Equal(t, "●", UnreadMarker([]string{"\\Flagged"}), "flagged but not seen = unread")
+}
+
+func TestIsUnread(t *testing.T) {
+	assert.False(t, IsUnread([]string{imap.SeenFlag}), "seen message is read")
+	assert.False(t, IsUnread([]string{"\\Answered", imap.SeenFlag}), "seen among others is read")
+	assert.True(t, IsUnread(nil), "no flags = unread")
+	assert.True(t, IsUnread([]string{"\\Flagged"}), "flagged but not seen = unread")
+}
+
+func TestFormatMessageRows(t *testing.T) {
+	viper.Set("timezone", "UTC")
+	defer viper.Set("timezone", "")
+
+	fixedDate := time.Date(2026, 1, 26, 15, 8, 17, 0, time.UTC)
+
+	t.Run("formats cells in column order and flags read state", func(t *testing.T) {
+		messages := []*imap.Message{
+			{
+				Uid:          54099,
+				InternalDate: fixedDate,
+				Size:         1536, // 1.5K
+				Envelope: &imap.Envelope{
+					Subject: "Renewal Notice",
+					From:    []*imap.Address{{MailboxName: "noreply", HostName: "cloudflare.com"}},
+					To:      []*imap.Address{{MailboxName: "ch", HostName: "wryfi.net"}},
+				},
+				Flags: []string{imap.SeenFlag},
+			},
+		}
+
+		rows, err := FormatMessageRows(messages)
+		assert.NoError(t, err)
+		assert.Len(t, rows, 1)
+
+		row := rows[0]
+		// No leading unread/checkbox column: cells align 1:1 with MessageColumns.
+		assert.Len(t, row.Cells, len(MessageColumns))
+		assert.Equal(t, "2026-01-26 15:08:17 +0000 UTC", row.Cells[0])
+		assert.Equal(t, "1.5K", row.Cells[1])
+		assert.Equal(t, "noreply@cloudflare.com", row.Cells[2])
+		assert.Equal(t, "ch@wryfi.net", row.Cells[3])
+		assert.Equal(t, "Renewal Notice", row.Cells[4])
+		assert.False(t, row.Unread, "seen message is not unread")
+	})
+
+	t.Run("unread when Seen flag absent", func(t *testing.T) {
+		messages := []*imap.Message{
+			{Envelope: &imap.Envelope{Subject: "hi"}, Flags: []string{"\\Flagged"}},
+			{Envelope: &imap.Envelope{Subject: "yo"}, Flags: []string{imap.SeenFlag}},
+		}
+		rows, err := FormatMessageRows(messages)
+		assert.NoError(t, err)
+		assert.True(t, rows[0].Unread, "no Seen flag = unread")
+		assert.False(t, rows[1].Unread, "Seen flag = read")
+	})
+
+	t.Run("nil envelope falls back to placeholders", func(t *testing.T) {
+		messages := []*imap.Message{
+			{Uid: 1, InternalDate: fixedDate, Size: 1536, Envelope: nil},
+		}
+		rows, err := FormatMessageRows(messages)
+		assert.NoError(t, err)
+		assert.Len(t, rows, 1)
+		assert.Equal(t,
+			[]string{"2026-01-26 15:08:17 +0000 UTC", "1.5K", "(unknown)", "(unknown)", "(unknown)"},
+			rows[0].Cells,
+		)
+		assert.True(t, rows[0].Unread, "no flags = unread")
+	})
+
+	t.Run("empty subject shows placeholder", func(t *testing.T) {
+		messages := []*imap.Message{{Envelope: &imap.Envelope{Subject: ""}}}
+		rows, err := FormatMessageRows(messages)
+		assert.NoError(t, err)
+		assert.Equal(t, "(unknown)", rows[0].Cells[4])
+	})
+
+	t.Run("truncates from to 30 and subject to 60 with ellipsis", func(t *testing.T) {
+		messages := []*imap.Message{
+			{
+				Envelope: &imap.Envelope{
+					Subject: strings.Repeat("x", 80),
+					From: []*imap.Address{
+						{MailboxName: "noreply-very-long-address-name", HostName: "notify.cloudflare.com"},
+					},
+				},
+			},
+		}
+		rows, err := FormatMessageRows(messages)
+		assert.NoError(t, err)
+		from := rows[0].Cells[2]
+		subject := rows[0].Cells[4]
+		assert.Len(t, []rune(from), 30)
+		assert.True(t, strings.HasSuffix(from, "..."), "long from is ellipsized")
+		assert.Len(t, []rune(subject), 60)
+		assert.True(t, strings.HasSuffix(subject, "..."), "long subject is ellipsized")
+	})
 }
 
 func TestTabulateMessages(t *testing.T) {

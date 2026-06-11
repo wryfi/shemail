@@ -142,53 +142,104 @@ func (md MessageDate) FormatConsistent(timezone *time.Location) string {
 	return localTime.Format("2006-01-02 15:04:05 -0700 MST")
 }
 
+// IsUnread reports whether a message lacks the \Seen flag.
+func IsUnread(flags []string) bool {
+	for _, flag := range flags {
+		if flag == imap.SeenFlag {
+			return false
+		}
+	}
+	return true
+}
+
 // UnreadMarker returns a dot for messages lacking the \Seen flag (unread) and
 // an empty string for read messages, for use as a compact status indicator.
 func UnreadMarker(flags []string) string {
-	for _, flag := range flags {
-		if flag == imap.SeenFlag {
-			return ""
-		}
+	if IsUnread(flags) {
+		return "●"
 	}
-	return "●"
+	return ""
 }
 
-// TabulateMessages takes a list of imap messages and displays them in a table
-func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
+// MessageColumns are the message-table column headers, in order. The leading
+// status column is intentionally omitted: unread state is carried on each
+// MessageRow (rendered as bold), and the interactive picker prepends its own
+// checkbox column. This is the single source of truth shared by the static
+// table renderer and the picker.
+var MessageColumns = []string{"Date", "Size", "From", "To", "Subject"}
+
+const (
+	fromColumnWidth    = 30
+	subjectColumnWidth = 60
+)
+
+// MessageRow is one formatted message: its cells (aligned 1:1 with
+// MessageColumns) and whether the message is unread, so renderers can style
+// unread rows rather than carrying a separate marker column.
+type MessageRow struct {
+	Cells  []string
+	Unread bool
+}
+
+// FormatMessageRows formats messages into display rows, the single source of
+// truth for how a message renders. Cells are pre-truncated to their column
+// widths. A message without an envelope (malformed or partial fetch) falls back
+// to placeholders rather than panicking.
+func FormatMessageRows(messages []*imap.Message) ([]MessageRow, error) {
 	tzString := viper.GetString("timezone")
 	tz, err := time.LoadLocation(tzString)
 	if err != nil {
-		return &tablewriter.Table{}, fmt.Errorf("Error loading timezone: %s: %w", tzString, err)
+		return nil, fmt.Errorf("error loading timezone %q: %w", tzString, err)
 	}
-	table := tablewriter.NewWriter(os.Stdout)
-	// The leading column marks unread messages with a dot (read messages blank).
-	table.SetHeader([]string{"", "Date", "Size", "From", "To", "Subject"})
-	table.SetBorder(false)
-	//table.SetRowLine(true)
-	table.SetAutoWrapText(false)
-	table.SetCaption(true, fmt.Sprintf("Found %d messages", len(messages)))
 
+	rows := make([]MessageRow, 0, len(messages))
 	for _, message := range messages {
-		unread := UnreadMarker(message.Flags)
-		msgDate := NewMessageDate(message.InternalDate)
-		date := msgDate.FormatConsistent(tz)
+		unread := IsUnread(message.Flags)
+		date := NewMessageDate(message.InternalDate).FormatConsistent(tz)
 		size := FormatSize(message.Size)
 
-		// A message may arrive without an envelope (malformed message or a
-		// partial fetch); fall back to placeholders rather than panicking.
 		if message.Envelope == nil {
-			table.Append([]string{unread, date, size, "(unknown)", "(unknown)", "(unknown)"})
+			rows = append(rows, MessageRow{
+				Cells:  []string{date, size, "(unknown)", "(unknown)", "(unknown)"},
+				Unread: unread,
+			})
 			continue
 		}
 
 		subject := "(unknown)"
 		if message.Envelope.Subject != "" {
-			subject = TruncateString(message.Envelope.Subject, 60)
+			subject = TruncateString(message.Envelope.Subject, subjectColumnWidth)
 		}
-		from := TruncateString(imaputils.FormatAddressesCSV(message.Envelope.From), 30)
+		from := TruncateString(imaputils.FormatAddressesCSV(message.Envelope.From), fromColumnWidth)
 		to := imaputils.FormatAddressesCSV(message.Envelope.To)
-		table.Append([]string{unread, date, size, from, to, subject})
+		rows = append(rows, MessageRow{
+			Cells:  []string{date, size, from, to, subject},
+			Unread: unread,
+		})
+	}
+	return rows, nil
+}
 
+// TabulateMessages takes a list of imap messages and displays them in a table
+func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
+	rows, err := FormatMessageRows(messages)
+	if err != nil {
+		return &tablewriter.Table{}, err
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	// The leading column marks unread messages with a dot (read messages blank).
+	table.SetHeader(append([]string{""}, MessageColumns...))
+	table.SetBorder(false)
+	table.SetAutoWrapText(false)
+	table.SetCaption(true, fmt.Sprintf("Found %d messages", len(messages)))
+
+	for _, row := range rows {
+		marker := ""
+		if row.Unread {
+			marker = "●"
+		}
+		table.Append(append([]string{marker}, row.Cells...))
 	}
 	return table, nil
 }
