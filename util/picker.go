@@ -15,12 +15,19 @@ import (
 // prepends to the shared message columns.
 const checkboxColumnWidth = 1
 
+// Picker modes: the row list, or the final confirmation prompt.
+const (
+	modeSelecting = iota
+	modeConfirming
+)
+
 var (
 	pickerBase     = lipgloss.NewStyle().Padding(0, 1)
-	pickerBold     = pickerBase.Bold(true)              // header and unread rows
-	pickerMuted    = pickerBase.Faint(true)             // read rows, de-emphasized
+	pickerBold     = pickerBase.Bold(true)  // header and unread rows
+	pickerMuted    = pickerBase.Faint(true) // read rows, de-emphasized
 	pickerCursorBg = lipgloss.AdaptiveColor{Light: "252", Dark: "237"}
 	pickerHelp     = lipgloss.NewStyle().Faint(true)
+	pickerConfirm  = lipgloss.NewStyle().Bold(true)
 )
 
 // messagePicker is the Bubble Tea model backing SelectMessages. It renders the
@@ -28,27 +35,30 @@ var (
 // plus a leading checkbox column, and lets the user toggle rows before
 // committing. Scrolling is windowed manually so the header stays pinned.
 type messagePicker struct {
-	messages  []*imap.Message
-	rows      []MessageRow
-	selected  []bool
-	action    string
-	cursor    int
-	top       int // index of the first visible row
-	height    int // number of message rows visible at once
-	committed bool
+	messages        []*imap.Message
+	rows            []MessageRow
+	selected        []bool
+	action          string
+	confirmRequired bool // state-changing actions get a final confirm screen
+	mode            int
+	cursor          int
+	top             int // index of the first visible row
+	height          int // number of message rows visible at once
+	committed       bool
 }
 
-func newMessagePicker(messages []*imap.Message, rows []MessageRow, action string) messagePicker {
+func newMessagePicker(messages []*imap.Message, rows []MessageRow, action string, confirmRequired bool) messagePicker {
 	selected := make([]bool, len(messages))
 	for index := range selected {
 		selected[index] = true // everything pre-selected; the user deselects exceptions
 	}
 	return messagePicker{
-		messages: messages,
-		rows:     rows,
-		selected: selected,
-		action:   action,
-		height:   20, // replaced by the first WindowSizeMsg
+		messages:        messages,
+		rows:            rows,
+		selected:        selected,
+		action:          action,
+		confirmRequired: confirmRequired,
+		height:          20, // replaced by the first WindowSizeMsg
 	}
 }
 
@@ -64,30 +74,58 @@ func (picker messagePicker) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		picker.clampScroll()
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "esc", "q":
-			picker.committed = false
-			return picker, tea.Quit
-		case "enter":
-			picker.committed = true
-			return picker, tea.Quit
-		case " ":
-			if len(picker.selected) > 0 {
-				picker.selected[picker.cursor] = !picker.selected[picker.cursor]
-			}
-		case "a":
-			picker.toggleAll()
-		case "up", "k":
-			picker.move(-1)
-		case "down", "j":
-			picker.move(1)
-		case "g", "home":
-			picker.cursor = 0
-			picker.clampScroll()
-		case "G", "end":
-			picker.cursor = len(picker.rows) - 1
-			picker.clampScroll()
+		if picker.mode == modeConfirming {
+			return picker.updateConfirming(msg)
 		}
+		return picker.updateSelecting(msg)
+	}
+	return picker, nil
+}
+
+func (picker messagePicker) updateSelecting(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "esc", "q":
+		picker.committed = false
+		return picker, tea.Quit
+	case "enter":
+		// State-changing actions get a final confirmation. An empty selection
+		// just quits; the caller reports that nothing was selected.
+		if picker.confirmRequired && picker.selectedCount() > 0 {
+			picker.mode = modeConfirming
+			return picker, nil
+		}
+		picker.committed = true
+		return picker, tea.Quit
+	case " ":
+		if len(picker.selected) > 0 {
+			picker.selected[picker.cursor] = !picker.selected[picker.cursor]
+		}
+	case "a":
+		picker.toggleAll()
+	case "up", "k":
+		picker.move(-1)
+	case "down", "j":
+		picker.move(1)
+	case "g", "home":
+		picker.cursor = 0
+		picker.clampScroll()
+	case "G", "end":
+		picker.cursor = len(picker.rows) - 1
+		picker.clampScroll()
+	}
+	return picker, nil
+}
+
+func (picker messagePicker) updateConfirming(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		picker.committed = false
+		return picker, tea.Quit
+	case "enter", "y":
+		picker.committed = true
+		return picker, tea.Quit
+	case "esc", "n":
+		picker.mode = modeSelecting // back to the list to adjust the selection
 	}
 	return picker, nil
 }
@@ -184,6 +222,13 @@ func (picker messagePicker) View() string {
 		table.Row(cells...)
 	}
 
+	if picker.mode == modeConfirming {
+		title := fmt.Sprintf("Confirm — %s", picker.action)
+		prompt := pickerConfirm.Render(fmt.Sprintf("really %s %d messages?  enter: yes · esc: back",
+			picker.action, picker.selectedCount()))
+		return strings.Join([]string{title, table.String(), prompt}, "\n")
+	}
+
 	title := fmt.Sprintf("Select messages to %s — %d of %d selected",
 		picker.action, picker.selectedCount(), len(picker.rows))
 	help := pickerHelp.Render("↑/↓ move · space toggle · a all/none · enter confirm · esc cancel")
@@ -213,7 +258,9 @@ func padCells(cells []string) []string {
 // and returns the subset the user keeps. committed is false when the user
 // cancels, in which case the caller must not act. action labels the pending
 // operation in the picker header (e.g. "delete", "move to Archive").
-func SelectMessages(messages []*imap.Message, action string) (kept []*imap.Message, committed bool, err error) {
+// confirmRequired adds a final confirmation screen for state-changing actions
+// (copy/move/delete); pass false for trivially reversible ones (mark read).
+func SelectMessages(messages []*imap.Message, action string, confirmRequired bool) (kept []*imap.Message, committed bool, err error) {
 	if len(messages) == 0 {
 		return nil, false, nil
 	}
@@ -222,7 +269,7 @@ func SelectMessages(messages []*imap.Message, action string) (kept []*imap.Messa
 		return nil, false, err
 	}
 
-	final, err := tea.NewProgram(newMessagePicker(messages, rows, action), tea.WithAltScreen()).Run()
+	final, err := tea.NewProgram(newMessagePicker(messages, rows, action, confirmRequired), tea.WithAltScreen()).Run()
 	if err != nil {
 		return nil, false, fmt.Errorf("interactive selection failed: %w", err)
 	}

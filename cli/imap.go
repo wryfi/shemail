@@ -157,7 +157,10 @@ func SearchFolder() *cobra.Command {
 				return nil
 			}
 
-			targets, proceed, err := resolveActionTargets(messages, actionLabel, assumeYes)
+			// Copy/move/delete relocate or remove messages, so the picker shows
+			// a final confirm; mark read/unread is trivially reversible.
+			confirmRequired := moveTo != "" || copyTo != "" || deleteFrom
+			targets, proceed, err := resolveActionTargets(messages, actionLabel, confirmRequired, assumeYes)
 			if err != nil {
 				return err
 			}
@@ -237,14 +240,14 @@ func isInteractive() bool {
 // user can deselect messages before acting; in a non-interactive session it
 // refuses rather than act blindly. proceed is false when the caller should stop
 // without acting (the user cancelled, selected nothing, or an error occurred).
-func resolveActionTargets(messages []*imap.Message, actionLabel string, assumeYes bool) (targets []*imap.Message, proceed bool, err error) {
+func resolveActionTargets(messages []*imap.Message, actionLabel string, confirmRequired, assumeYes bool) (targets []*imap.Message, proceed bool, err error) {
 	if assumeYes {
 		return messages, true, nil
 	}
 	if !isInteractive() {
 		return nil, false, fmt.Errorf("refusing to %s %d messages without --yes in a non-interactive session", actionLabel, len(messages))
 	}
-	kept, committed, err := util.SelectMessages(messages, actionLabel)
+	kept, committed, err := util.SelectMessages(messages, actionLabel, confirmRequired)
 	if err != nil {
 		return nil, false, err
 	}

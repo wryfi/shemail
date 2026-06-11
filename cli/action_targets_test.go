@@ -14,14 +14,14 @@ func TestResolveActionTargets(t *testing.T) {
 	messages := []*imap.Message{{Uid: 1}, {Uid: 2}}
 
 	t.Run("--yes acts on all messages", func(t *testing.T) {
-		targets, proceed, err := resolveActionTargets(messages, "delete", true)
+		targets, proceed, err := resolveActionTargets(messages, "delete", true, true)
 		assert.NoError(t, err)
 		assert.True(t, proceed)
 		assert.Equal(t, messages, targets)
 	})
 
 	t.Run("non-interactive without --yes refuses", func(t *testing.T) {
-		targets, proceed, err := resolveActionTargets(messages, "delete", false)
+		targets, proceed, err := resolveActionTargets(messages, "delete", true, false)
 		assert.Error(t, err)
 		assert.False(t, proceed)
 		assert.Nil(t, targets)
