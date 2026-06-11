@@ -295,7 +295,10 @@ func TestFormatMessageRows(t *testing.T) {
 	})
 }
 
-func TestTabulateMessages(t *testing.T) {
+func TestRenderMessages(t *testing.T) {
+	viper.Set("timezone", "UTC")
+	defer viper.Set("timezone", "")
+
 	messages := []*imap.Message{
 		{
 			Envelope: &imap.Envelope{
@@ -303,13 +306,17 @@ func TestTabulateMessages(t *testing.T) {
 				From:    []*imap.Address{{PersonalName: "John Doe", MailboxName: "john", HostName: "example.com"}},
 				To:      []*imap.Address{{PersonalName: "Jane Doe", MailboxName: "jane", HostName: "example.com"}},
 			},
-			InternalDate: time.Now(),
+			InternalDate: time.Date(2026, 1, 26, 15, 8, 17, 0, time.UTC),
+			Flags:        []string{imap.SeenFlag},
 		},
 	}
 
-	table, err := TabulateMessages(messages)
+	rendered, err := RenderMessages(messages)
 	assert.NoError(t, err)
-	assert.NotNil(t, table)
+	assert.Contains(t, rendered, "Subject", "includes column header")
+	assert.Contains(t, rendered, "Test Subject", "includes the subject cell")
+	assert.Contains(t, rendered, "john@example.com", "includes the from cell")
+	assert.Contains(t, rendered, "Found 1 messages", "includes the count caption")
 }
 
 func TestTabulateSenders(t *testing.T) {

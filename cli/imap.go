@@ -119,11 +119,11 @@ func SearchFolder() *cobra.Command {
 				return nil
 			}
 
-			if table, err := util.TabulateMessages(messages); err == nil {
-				table.Render()
-			} else {
-				return fmt.Errorf("error tabulating messages: %w", err)
+			rendered, err := util.RenderMessages(messages)
+			if err != nil {
+				return fmt.Errorf("error rendering messages: %w", err)
 			}
+			fmt.Println(rendered)
 
 			// confirm honors --yes for non-interactive use (e.g. cron).
 			confirm := func(prompt string) bool {
@@ -326,11 +326,11 @@ func Dedupe() *cobra.Command {
 				return nil
 			}
 
-			if table, err := util.TabulateMessages(duplicates); err == nil {
-				table.Render()
-			} else {
-				return fmt.Errorf("error tabulating messages: %w", err)
+			rendered, err := util.RenderMessages(duplicates)
+			if err != nil {
+				return fmt.Errorf("error rendering messages: %w", err)
 			}
+			fmt.Println(rendered)
 
 			account.Purge = account.Purge || purge
 			action := "delete"

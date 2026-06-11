@@ -3,6 +3,8 @@ package util
 import (
 	"bufio"
 	"fmt"
+	"github.com/charmbracelet/lipgloss"
+	ltable "github.com/charmbracelet/lipgloss/table"
 	"github.com/emersion/go-imap"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/viper"
@@ -220,28 +222,48 @@ func FormatMessageRows(messages []*imap.Message) ([]MessageRow, error) {
 	return rows, nil
 }
 
-// TabulateMessages takes a list of imap messages and displays them in a table
-func TabulateMessages(messages []*imap.Message) (*tablewriter.Table, error) {
+// RenderMessages renders messages as a table string for static (non-interactive)
+// display: the shared columns, with unread rows in bold (replacing the old dot
+// column) and a trailing count caption. Borders are reduced to a single header
+// rule so the static view matches the interactive picker, which draws the same
+// shape plus a leading checkbox column.
+func RenderMessages(messages []*imap.Message) (string, error) {
 	rows, err := FormatMessageRows(messages)
 	if err != nil {
-		return &tablewriter.Table{}, err
+		return "", err
 	}
 
-	table := tablewriter.NewWriter(os.Stdout)
-	// The leading column marks unread messages with a dot (read messages blank).
-	table.SetHeader(append([]string{""}, MessageColumns...))
-	table.SetBorder(false)
-	table.SetAutoWrapText(false)
-	table.SetCaption(true, fmt.Sprintf("Found %d messages", len(messages)))
+	base := lipgloss.NewStyle().Padding(0, 1)
+	bold := base.Bold(true)    // header and unread rows
+	muted := base.Faint(true)  // read rows, de-emphasized so unread stands out
+
+	table := ltable.New().
+		Border(lipgloss.NormalBorder()).
+		BorderTop(false).
+		BorderBottom(false).
+		BorderLeft(false).
+		BorderRight(false).
+		BorderColumn(false).
+		BorderRow(false).
+		BorderHeader(true).
+		Headers(MessageColumns...).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			// Header and unread rows are bold; read rows are faint, so the
+			// unread messages stand out by contrast.
+			if row == ltable.HeaderRow {
+				return bold
+			}
+			if row >= 0 && row < len(rows) && rows[row].Unread {
+				return bold
+			}
+			return muted
+		})
 
 	for _, row := range rows {
-		marker := ""
-		if row.Unread {
-			marker = "●"
-		}
-		table.Append(append([]string{marker}, row.Cells...))
+		table.Row(row.Cells...)
 	}
-	return table, nil
+
+	return fmt.Sprintf("%s\nFound %d messages", table.String(), len(messages)), nil
 }
 
 // TabulateFolders renders a list of folders with their message and unread
