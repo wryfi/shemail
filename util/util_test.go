@@ -4,6 +4,7 @@ import (
 	"github.com/emersion/go-imap"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/wryfi/shemail/imaputils"
 	"strings"
 	"testing"
 	"time"
@@ -319,12 +320,29 @@ func TestRenderMessages(t *testing.T) {
 	assert.Contains(t, rendered, "Found 1 messages", "includes the count caption")
 }
 
-func TestTabulateSenders(t *testing.T) {
+func TestRenderSenders(t *testing.T) {
 	data := [][]string{
-		{"Header1", "Header2"},
-		{"Value1", "Value2"},
+		{"Sender", "Number of Messages"},
+		{"noreply@example.com", "42"},
 	}
 
-	table := TabulateSenders(data)
-	assert.NotNil(t, table)
+	rendered := RenderSenders(data)
+	assert.Contains(t, rendered, "Sender", "includes header")
+	assert.Contains(t, rendered, "noreply@example.com", "includes the sender cell")
+	assert.Contains(t, rendered, "42", "includes the count cell")
+
+	assert.Empty(t, RenderSenders(nil), "no data renders nothing")
+}
+
+func TestRenderFolders(t *testing.T) {
+	folders := []imaputils.FolderStatus{
+		{Name: "INBOX", Selectable: true, Messages: 128, Unseen: 3},
+		{Name: "Archive", Selectable: false}, // container folder shows "-"
+	}
+
+	rendered := RenderFolders(folders, false)
+	assert.Contains(t, rendered, "Folder", "includes header")
+	assert.Contains(t, rendered, "INBOX")
+	assert.Contains(t, rendered, "128")
+	assert.Contains(t, rendered, "-", "non-selectable folder shows a dash for counts")
 }

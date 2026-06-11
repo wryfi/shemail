@@ -6,7 +6,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	ltable "github.com/charmbracelet/lipgloss/table"
 	"github.com/emersion/go-imap"
-	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/viper"
 	"github.com/wryfi/shemail/imaputils"
 	"os"
@@ -230,6 +229,32 @@ func FormatMessageRows(messages []*imap.Message) ([]MessageRow, error) {
 	return rows, nil
 }
 
+// Shared table styling, used by every tabular renderer (messages, folders,
+// senders) and the interactive picker, so all of shemail's tables look alike.
+var (
+	tableBaseStyle  = lipgloss.NewStyle().Padding(0, 1)
+	tableBoldStyle  = tableBaseStyle.Bold(true)  // header cells and unread rows
+	tableMutedStyle = tableBaseStyle.Faint(true) // read rows, de-emphasized
+)
+
+// styledTable returns a lipgloss table with shemail's shared look: a single rule
+// under the header, no outer box or column/row separators, and one space of
+// horizontal padding per cell. The caller supplies the per-cell StyleFunc (which
+// should return tableBoldStyle for the header row).
+func styledTable(headers []string, styleFunc func(row, col int) lipgloss.Style) *ltable.Table {
+	return ltable.New().
+		Border(lipgloss.NormalBorder()).
+		BorderTop(false).
+		BorderBottom(false).
+		BorderLeft(false).
+		BorderRight(false).
+		BorderColumn(false).
+		BorderRow(false).
+		BorderHeader(true).
+		Headers(headers...).
+		StyleFunc(styleFunc)
+}
+
 // RenderMessages renders messages as a table string for static (non-interactive)
 // display: the shared columns, with unread rows in bold (replacing the old dot
 // column) and a trailing count caption. Borders are reduced to a single header
@@ -241,31 +266,17 @@ func RenderMessages(messages []*imap.Message) (string, error) {
 		return "", err
 	}
 
-	base := lipgloss.NewStyle().Padding(0, 1)
-	bold := base.Bold(true)    // header and unread rows
-	muted := base.Faint(true)  // read rows, de-emphasized so unread stands out
-
-	table := ltable.New().
-		Border(lipgloss.NormalBorder()).
-		BorderTop(false).
-		BorderBottom(false).
-		BorderLeft(false).
-		BorderRight(false).
-		BorderColumn(false).
-		BorderRow(false).
-		BorderHeader(true).
-		Headers(MessageColumns...).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			// Header and unread rows are bold; read rows are faint, so the
-			// unread messages stand out by contrast.
-			if row == ltable.HeaderRow {
-				return bold
-			}
-			if row >= 0 && row < len(rows) && rows[row].Unread {
-				return bold
-			}
-			return muted
-		})
+	table := styledTable(MessageColumns, func(row, col int) lipgloss.Style {
+		// Header and unread rows are bold; read rows are faint, so the unread
+		// messages stand out by contrast.
+		if row == ltable.HeaderRow {
+			return tableBoldStyle
+		}
+		if row >= 0 && row < len(rows) && rows[row].Unread {
+			return tableBoldStyle
+		}
+		return tableMutedStyle
+	})
 
 	for _, row := range rows {
 		table.Row(row.Cells...)
@@ -274,26 +285,32 @@ func RenderMessages(messages []*imap.Message) (string, error) {
 	return fmt.Sprintf("%s\nFound %d messages", table.String(), len(messages)), nil
 }
 
-// TabulateFolders renders a list of folders with their message and unread
-// counts. When withDates is true it also includes the date range of each
-// folder's messages. Non-selectable container folders (and empty folders, for
-// dates) show "-".
-func TabulateFolders(folders []imaputils.FolderStatus, withDates bool) *tablewriter.Table {
-	table := tablewriter.NewWriter(os.Stdout)
-	header := []string{"Folder", "Messages", "Unread"}
-	alignment := []int{tablewriter.ALIGN_LEFT, tablewriter.ALIGN_RIGHT, tablewriter.ALIGN_RIGHT}
+// RenderFolders renders a folder listing with message and unread counts as a
+// table string in the shared style. When withDates is true it also includes the
+// date range of each folder's messages. Non-selectable container folders (and
+// empty folders, for dates) show "-". The numeric count columns are
+// right-aligned.
+func RenderFolders(folders []imaputils.FolderStatus, withDates bool) string {
+	headers := []string{"Folder", "Messages", "Unread"}
 	if withDates {
-		header = append(header, "Oldest", "Newest")
-		alignment = append(alignment, tablewriter.ALIGN_LEFT, tablewriter.ALIGN_LEFT)
+		headers = append(headers, "Oldest", "Newest")
 	}
-	table.SetHeader(header)
-	table.SetBorder(false)
-	table.SetAutoWrapText(false)
-	table.SetColumnAlignment(alignment)
+
+	// Messages (col 1) and Unread (col 2) are numeric; right-align them.
+	numeric := func(col int) bool { return col == 1 || col == 2 }
+	table := styledTable(headers, func(row, col int) lipgloss.Style {
+		style := tableBaseStyle
+		if row == ltable.HeaderRow {
+			style = tableBoldStyle
+		}
+		if numeric(col) {
+			style = style.Align(lipgloss.Right)
+		}
+		return style
+	})
 
 	for _, folder := range folders {
-		messages := "-"
-		unread := "-"
+		messages, unread := "-", "-"
 		if folder.Selectable {
 			messages = strconv.Itoa(int(folder.Messages))
 			unread = strconv.Itoa(int(folder.Unseen))
@@ -302,10 +319,10 @@ func TabulateFolders(folders []imaputils.FolderStatus, withDates bool) *tablewri
 		if withDates {
 			row = append(row, formatDate(folder.Oldest), formatDate(folder.Newest))
 		}
-		table.Append(row)
+		table.Row(row...)
 	}
 
-	return table
+	return table.String()
 }
 
 // formatDate renders a date as YYYY-MM-DD, or "-" for the zero value.
@@ -316,17 +333,31 @@ func formatDate(date time.Time) string {
 	return date.Format("2006-01-02")
 }
 
-// TabulateSenders creates a table from the given data and renders it to the terminal
-func TabulateSenders(data [][]string) *tablewriter.Table {
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader(data[0])
-	table.SetBorder(false)
-
-	for _, v := range data[1:] {
-		table.Append(v)
+// RenderSenders renders sender/count data (data[0] is the header row) as a table
+// string in the shared style, with the trailing count column right-aligned.
+func RenderSenders(data [][]string) string {
+	if len(data) == 0 {
+		return ""
 	}
 
-	return table
+	headers := data[0]
+	countColumn := len(headers) - 1 // the message-count column
+	table := styledTable(headers, func(row, col int) lipgloss.Style {
+		style := tableBaseStyle
+		if row == ltable.HeaderRow {
+			style = tableBoldStyle
+		}
+		if col == countColumn {
+			style = style.Align(lipgloss.Right)
+		}
+		return style
+	})
+
+	for _, row := range data[1:] {
+		table.Row(row...)
+	}
+
+	return table.String()
 }
 
 // GetConfirmation prompts the user for confirmation before proceeding

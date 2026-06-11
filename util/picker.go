@@ -21,10 +21,9 @@ const (
 	modeConfirming
 )
 
+// The picker reuses the shared table styles (tableBaseStyle/Bold/Muted) so it
+// matches the static renderers; these are the picker-only additions.
 var (
-	pickerBase     = lipgloss.NewStyle().Padding(0, 1)
-	pickerBold     = pickerBase.Bold(true)  // header and unread rows
-	pickerMuted    = pickerBase.Faint(true) // read rows, de-emphasized
 	pickerCursorBg = lipgloss.AdaptiveColor{Light: "252", Dark: "237"}
 	pickerHelp     = lipgloss.NewStyle().Faint(true)
 	pickerConfirm  = lipgloss.NewStyle().Bold(true)
@@ -193,17 +192,17 @@ func (picker messagePicker) View() string {
 		Headers(append([]string{""}, MessageColumns...)...).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == ltable.HeaderRow {
-				return pickerBold
+				return tableBoldStyle
 			}
 			absolute := picker.top + row
-			style := pickerMuted
+			style := tableMutedStyle
 			if absolute >= 0 && absolute < len(picker.rows) && picker.rows[absolute].Unread {
-				style = pickerBold
+				style = tableBoldStyle
 			}
 			if absolute == picker.cursor {
 				// Background highlight composes cleanly with bold; drop faint so
 				// the highlighted row stays legible.
-				style = pickerBase.Background(pickerCursorBg)
+				style = tableBaseStyle.Background(pickerCursorBg)
 				if absolute < len(picker.rows) && picker.rows[absolute].Unread {
 					style = style.Bold(true)
 				}

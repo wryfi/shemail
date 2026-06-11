@@ -29,7 +29,7 @@ func ListFolders() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("Error listing folders: %w", err)
 				}
-				util.TabulateFolders(folders, dates).Render()
+				fmt.Println(util.RenderFolders(folders, dates))
 				return nil
 			}
 
@@ -217,7 +217,7 @@ func SearchFolder() *cobra.Command {
 	cmd.Flags().StringVar(&sortBy, "sort", "date", "sort by: date, subject, from, to, size, unread")
 	cmd.Flags().BoolVarP(&reverse, "reverse", "R", false, "reverse the sort order")
 	cmd.Flags().BoolVar(&countOnly, "count", false, "print only the number of matching messages")
-	cmd.Flags().BoolVarP(&assumeYes, "yes", "y", false, "skip confirmation prompts (assume yes)")
+	cmd.Flags().BoolVarP(&assumeYes, "yes", "y", false, "skip the interactive picker and act on all matches")
 	// --read and --unread are contradictory: requiring both Seen and not-Seen
 	// matches nothing. Reject the combination up front instead of silently
 	// returning zero results.
@@ -289,8 +289,7 @@ func CountMessagesBySender() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("error counting messages: %w", err)
 			}
-			table := util.TabulateSenders(data)
-			table.Render()
+			fmt.Println(util.RenderSenders(data))
 			return nil
 		},
 	}

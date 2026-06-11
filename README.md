@@ -12,6 +12,7 @@ garbage from your inbox.
 - view a list of the top senders in your mailbox
 - search mailbox for messages based on various criteria
 - move or delete messages based on search criteria
+- interactively review and deselect matches before any bulk action runs
 
 ## Status
 
@@ -253,8 +254,11 @@ shemail find INBOX --sort unread
 shemail find INBOX --sort date --reverse
 ```
 
-Combine search criteria with `--move` or `--delete` to act on the matches. You
-are shown the matching messages and asked to confirm before anything happens:
+Combine search criteria with an action (`--move`, `--copy`, `--delete`,
+`--mark-read`, `--mark-unread`) to act on the matches. At a terminal, shemail
+opens an interactive picker listing the matches with every message
+pre-selected — deselect any you want to spare, then press `enter` to apply
+(copy/move/delete ask for one final confirmation):
 
 ```sh
 # move everything from a sender, sent before a date, into an Archive folder
@@ -301,7 +305,7 @@ A few notes:
   `--subject "a, b"` matches the literal text `a, b`.
 - `--delete` moves messages to a trash folder by default. Add `--purge` (or set
   `purge: true` on the account) to permanently expunge them in place instead —
-  useful for emptying trash. The confirmation prompt says "permanently delete"
+  useful for emptying trash. The picker's confirmation says "permanently delete"
   when purging.
 - `--read`/`--unread` (search filters) are mutually exclusive. The actions
   `--move`, `--delete`, `--mark-read`, and `--mark-unread` are also mutually
@@ -310,10 +314,17 @@ A few notes:
   messages (no move or delete).
 - `--copy <folder>` copies the matched messages to another folder (creating it
   if needed), leaving the originals in place.
-- `--yes`/`-y` skips the confirmation prompt for `--move`/`--copy`/`--delete`/
-  `--mark-*`, for non-interactive use (e.g. cron). Use with care.
-- In `find` output, the leading `●` marks unread messages; read messages have a
-  blank in that column.
+- **Interactive selection.** When you run an action at a terminal, shemail
+  opens a picker listing the matches with every message pre-selected. Navigate
+  with `↑`/`↓` (or `j`/`k`), toggle a message with `space`, toggle all with `a`,
+  and press `enter` to apply. `--copy`/`--move`/`--delete` then ask for one
+  final confirmation (`enter` to confirm, `esc` to go back); `--mark-read`/
+  `--mark-unread` apply immediately. `esc` or `q` cancels without acting.
+- `--yes`/`-y` skips the picker and acts on **all** matches, for non-interactive
+  use (e.g. cron). For safety, an action run in a non-interactive session (no
+  terminal) *without* `--yes` is refused rather than acting on everything — so a
+  piped or scheduled command can't silently act on the wrong set. Use with care.
+- In `find` output (and the picker), **unread messages are shown in bold**.
 - By default `find` combines criteria with AND; pass `--or` to match any
   criterion. Subject filters always apply as an additional restriction, even
   with `--or`.
